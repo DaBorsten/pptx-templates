@@ -81,7 +81,5 @@ Found a security problem? Please follow the [security policy](https://github.com
 
 This project was inspired by:
 
-- [PptxGenJS](https://github.com/gitbrent/PptxGenJS)
-- [officegen](https://github.com/Ziv-Barber/officegen)
-- [node-pptx](https://github.com/heavysixer/node-pptx)
-- [docxtemplater](https://github.com/open-xml-templating/docxtemplater)
+- [pptx-automizer](https://github.com/singerla/pptx-automizer)
+- [docx-templates](https://github.com/guigrpa/docx-templates)
