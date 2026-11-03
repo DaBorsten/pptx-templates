@@ -3,7 +3,7 @@ title: Modify Images
 description: Import external media, swap image sources, auto-crop to cover, and apply duotone overlays.
 ---
 
-`pptx-automizer` can extract images from loaded .pptx template files and add to your output presentation. You can use shape modifiers (e.g. for size and position) on images, too. Additionally, it is possible to load external media files directly and update relation `Target` of an existing image. This works on both, existing or added images.
+`pptx-templates` can extract images from loaded .pptx template files and add to your output presentation. You can use shape modifiers (e.g. for size and position) on images, too. Additionally, it is possible to load external media files directly and update relation `Target` of an existing image. This works on both, existing or added images.
 
 ```ts
 const automizer = new Automizer({
@@ -81,6 +81,6 @@ slide.modifyElement('Icon', [
 
 ## Find out more
 
-- [Add external image](https://github.com/singerla/pptx-automizer/blob/main/__tests__/add-external-image.test.ts)
-- [Modify duotone color overlay for images](https://github.com/singerla/pptx-automizer/blob/main/__tests__/modify-image-duotone.test.ts)
-- [Swap image source on a slide master](https://github.com/singerla/pptx-automizer/blob/main/__tests__/modify-master-external-image.test.ts)
+- [Add external image](https://github.com/DaBorsten/pptx-templates/blob/main/__tests__/add-external-image.test.ts)
+- [Modify duotone color overlay for images](https://github.com/DaBorsten/pptx-templates/blob/main/__tests__/modify-image-duotone.test.ts)
+- [Swap image source on a slide master](https://github.com/DaBorsten/pptx-templates/blob/main/__tests__/modify-master-external-image.test.ts)

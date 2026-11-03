@@ -82,7 +82,7 @@ function getValidatedExtension(filename: string): ContentTypeExtension {
 /**
  * Automizer
  *
- * The basic class for `pptx-automizer` package.
+ * The basic class for `pptx-templates` package.
  * This class will be exported as `Automizer` by `index.ts`.
  */
 export default class Automizer implements IPresentationProps {
@@ -118,7 +118,7 @@ export default class Automizer implements IPresentationProps {
   mastersToRemove: number[] = [];
 
   /**
-   * Creates an instance of `pptx-automizer`.
+   * Creates an instance of `pptx-templates`.
    * @param [params]
    */
   constructor(params: AutomizerParams) {

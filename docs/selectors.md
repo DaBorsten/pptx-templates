@@ -3,7 +3,7 @@ title: Selecting slides and shapes
 description: Address slides by number or creationId, and shapes by name, nameIdx or creationId.
 ---
 
-`pptx-automizer` needs a selector to find the required shape on a template slide. While an imported .pptx file is identified by filename or custom label, there are different ways to address its slides and shapes.
+`pptx-templates` needs a selector to find the required shape on a template slide. While an imported .pptx file is identified by filename or custom label, there are different ways to address its slides and shapes.
 
 ## Select slide by number and shape by name
 
@@ -110,7 +110,7 @@ const automizer = new Automizer({
 Regarding shapes, it is also possible to use a `creationId` and the shape name as a fallback. These are the different types of a `FindElementSelector`:
 
 ```ts
-import { FindElementSelector } from 'pptx-automizer';
+import { FindElementSelector } from 'pptx-templates';
 
 // This is default when set up with `useCreationIds: true`:
 const myShapeSelectorCreationId: FindElementSelector =
@@ -153,7 +153,7 @@ There are basically two ways to access a target shape on a slide:
 Modifications can be applied to both in the same way:
 
 ```ts
-import { modify, CmToDxa } from 'pptx-automizer';
+import { modify, CmToDxa } from 'pptx-templates';
 
 pres.addSlide('shapes', 2, (slide) => {
   // This will only work if there is a shape called 'Drum'
@@ -205,7 +205,7 @@ pres.addSlide('myTemplate.pptx', 1, async (slide) => {
 When processing an added slide, you might want to apply a modifier to any existing text element. Call `slide.getAllTextElementIds()` for this:
 
 ```ts
-import Automizer, { modify } from 'pptx-automizer';
+import Automizer, { modify } from 'pptx-templates';
 
 pres.addSlide('myTemplate.pptx', 1, async (slide) => {
   const elements = await slide.getAllTextElementIds();

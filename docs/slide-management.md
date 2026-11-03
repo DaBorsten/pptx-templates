@@ -22,7 +22,7 @@ pres
 
 ## Loop through the slides of a presentation
 
-If you would like to modify elements in a single .pptx file, it is important to know that `pptx-automizer` is not able to directly "jump" to a shape to modify it — see [the template/root model](./concepts.md#the-templateroot-model) for how it works internally.
+If you would like to modify elements in a single .pptx file, it is important to know that `pptx-templates` is not able to directly "jump" to a shape to modify it — see [the template/root model](./concepts.md#the-templateroot-model) for how it works internally.
 
 In case you need to apply modifications to the root template, you need to load it as a normal template:
 
@@ -33,7 +33,7 @@ import Automizer, {
   ModifyColorHelper,
   ModifyShapeHelper,
   ModifyTextHelper,
-} from 'pptx-automizer';
+} from 'pptx-templates';
 
 const run = async () => {
   const automizer = new Automizer({
@@ -120,7 +120,7 @@ There are three ways to arrange slides in an output presentation.
 2. You can alternatively remove all existing slides by setting the `removeExistingSlides` flag to true. The first slide added with `addSlide` will be first slide in the output presentation. If you want to insert slides from root template, you need to load it a second time.
 
 ```ts
-import Automizer from 'pptx-automizer';
+import Automizer from 'pptx-templates';
 
 const automizer = new Automizer({
   templateDir: `my/pptx/templates`,
@@ -156,7 +156,7 @@ pres.write(`mySortedPresentation.pptx`).then((summary) => {
 Slides will be appended to the existing slides by slide number (starting from 1). You may find irritating results in case you skip a slide number.
 
 ```ts
-import { ModifyPresentationHelper } from 'pptx-automizer';
+import { ModifyPresentationHelper } from 'pptx-templates';
 
 //
 // You may truncate root template or you may not

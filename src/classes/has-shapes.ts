@@ -297,7 +297,7 @@ export default class HasShapes {
       });
     } catch (error) {
       // Log the error message
-      throw new Error(error.message);
+      throw new Error(error.message, { cause: error });
     }
   }
 

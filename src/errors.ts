@@ -2,7 +2,7 @@ import type { SlideLayoutSelector } from './types/types';
 import type { SlideLayoutInfo } from './helper/layout-index';
 
 /**
- * Base class for all errors thrown by pptx-automizer.
+ * Base class for all errors thrown by pptx-templates.
  * Allows consumers to catch library errors with `instanceof AutomizerError`.
  */
 export class AutomizerError extends Error {

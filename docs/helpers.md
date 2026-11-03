@@ -1,9 +1,9 @@
 ---
 title: Helper Utilities
-description: Shape, cleanup, unit-conversion, generic and advanced XML helpers exposed by pptx-automizer.
+description: Shape, cleanup, unit-conversion, generic and advanced XML helpers exposed by pptx-templates.
 ---
 
-This section documents handy helpers exposed by `pptx-automizer` that provide extra capabilities. You can import helpers directly from the package:
+This section documents handy helpers exposed by `pptx-templates` that provide extra capabilities. You can import helpers directly from the package:
 
 ```ts
 import {
@@ -12,7 +12,7 @@ import {
   ModifyCleanupHelper,
   ModifyTextHelper,
   ModifyImageHelper,
-} from 'pptx-automizer';
+} from 'pptx-templates';
 ```
 
 Some helper families are documented with their feature area:
@@ -37,7 +37,7 @@ slide.modifyElement('MyShape', [
 - Outline (line) width, color and dash style
 
 ```ts
-import { PtToEmu } from 'pptx-automizer';
+import { PtToEmu } from 'pptx-templates';
 
 slide.modifyElement('MyShape', [
   ModifyShapeHelper.setOutline({
@@ -80,7 +80,7 @@ slide.modifyElement('MyTextBox', [
 - Position, size, rotation, rounded corners
 
 ```ts
-import { CmToDxa } from 'pptx-automizer';
+import { CmToDxa } from 'pptx-templates';
 
 slide.modifyElement('MyShape', [
   // set absolute position/size
@@ -99,7 +99,7 @@ slide.modifyElement('MyShape', [
 `ModifyCleanupHelper` helps remove formatting noise from shapes when you need a clean base.
 
 ```ts
-import { XmlElement } from 'pptx-automizer';
+import { XmlElement } from 'pptx-templates';
 
 slide.modifyElement('MyShape', [
   ModifyCleanupHelper.removeBackground,
@@ -127,7 +127,7 @@ Other useful helpers include: `removeTextEffects`, `removeFillEffects`, `remove3
 PowerPoint stores coordinates and sizes in the `dxa` (EMU) unit. Use the exported converters to work with centimeters instead:
 
 ```ts
-import { CmToDxa, DxaToCm } from 'pptx-automizer';
+import { CmToDxa, DxaToCm } from 'pptx-templates';
 
 // centimeters -> dxa (e.g. when setting position/size)
 const widthInDxa = CmToDxa(6); // 2160000
@@ -139,7 +139,7 @@ const widthInCm = DxaToCm(2160000); // 6
 Line weights are usually given in points, use `PtToEmu`/`EmuToPt` for those:
 
 ```ts
-import { PtToEmu, EmuToPt } from 'pptx-automizer';
+import { PtToEmu, EmuToPt } from 'pptx-templates';
 
 const weight = PtToEmu(1.5); // 19050
 const inPoints = EmuToPt(19050); // 1.5
@@ -150,7 +150,7 @@ const inPoints = EmuToPt(19050); // 1.5
 `ModifyHelper` (also available through the `modify` namespace) offers low-level callbacks that are handy for debugging or custom XML tweaks:
 
 ```ts
-import { modify } from 'pptx-automizer';
+import { modify } from 'pptx-templates';
 
 slide.modifyElement('MyShape', [
   // print the element's XML to the console
@@ -169,7 +169,7 @@ For advanced scenarios, you can inspect slide XML and relationships. These are c
 Import them from the package root:
 
 ```ts
-import { XmlSlideHelper, XmlRelationshipHelper } from 'pptx-automizer';
+import { XmlSlideHelper, XmlRelationshipHelper } from 'pptx-templates';
 ```
 
 Examples:
@@ -181,9 +181,9 @@ Examples:
 
 See tests for practical usage:
 
-- [Find all text elements on a slide](https://github.com/singerla/pptx-automizer/blob/main/__tests__/get-all-text-element-ids.test.ts)
-- [Read shape/group info](https://github.com/singerla/pptx-automizer/blob/main/__tests__/read-shape-info.test.ts)
-- [Read group info](https://github.com/singerla/pptx-automizer/blob/main/__tests__/read-group-info.test.ts)
+- [Find all text elements on a slide](https://github.com/DaBorsten/pptx-templates/blob/main/__tests__/get-all-text-element-ids.test.ts)
+- [Read shape/group info](https://github.com/DaBorsten/pptx-templates/blob/main/__tests__/read-shape-info.test.ts)
+- [Read group info](https://github.com/DaBorsten/pptx-templates/blob/main/__tests__/read-group-info.test.ts)
 
 ## Writing raw XML callbacks
 
@@ -193,7 +193,7 @@ custom geometry, `a:effectLst`, …). Any callback you pass to
 `<p:pic>` or `<p:graphicFrame>` node — so you can edit it directly:
 
 ```ts
-import { XmlElement } from 'pptx-automizer';
+import { XmlElement } from 'pptx-templates';
 
 slide.modifyElement('MyBox', (element: XmlElement) => {
   // ...manipulate the DOM node...
@@ -229,7 +229,7 @@ Rules for hand-written callbacks:
 
 If a raw callback you wrote turns out to be generally useful, it is a good
 candidate for a new `modify.*` helper — see
-[AGENTS.md](https://github.com/singerla/pptx-automizer/blob/main/AGENTS.md) in
+[AGENTS.md](https://github.com/DaBorsten/pptx-templates/blob/main/AGENTS.md) in
 the repository.
 
 ### Worked example: shape outline (weight + color)
@@ -239,7 +239,7 @@ the repository.
 > it shows the general technique on a realistic property.
 
 ```ts
-import Automizer, { XmlElement } from 'pptx-automizer';
+import Automizer, { XmlElement } from 'pptx-templates';
 
 // p:spPr children that must stay AFTER a:ln
 const AFTER_LN = ['a:effectLst', 'a:effectDag', 'a:scene3d', 'a:sp3d', 'a:extLst'];

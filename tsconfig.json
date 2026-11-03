@@ -2,14 +2,15 @@
   "compilerOptions": {
     "module": "commonjs",
     "esModuleInterop": true,
+    "strict": false,
     "noImplicitAny": true,
     "strictBindCallApply": true,
     "target": "es6",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "sourceMap": true,
+    "rootDir": "src",
     "outDir": "dist",
-    "baseUrl": "/",
-    "lib": ["es2020"],
+    "lib": ["es2022"],
     "declaration": true,
     "declarationDir": "./dist",
     "types": ["jest", "node"]

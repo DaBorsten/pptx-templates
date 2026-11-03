@@ -2,20 +2,20 @@
      Source: tools/ai-instructor/template.md + the docs/ pages it includes.
      Rebuild: yarn docs:ai   (drift is caught by __tests__/ai-instructor.test.ts) -->
 
-# AI Instructor: Generating PowerPoint with pptx-automizer
+# AI Instructor: Generating PowerPoint with pptx-templates
 
 > **For AI assistants (Claude, etc.):** This document teaches you how to write
-> correct code with `pptx-automizer`. Follow it as authoritative instructions.
+> correct code with `pptx-templates`. Follow it as authoritative instructions.
 >
 > **For humans:** Drop this file into your project (or paste it into your AI
 > chat / reference it from your CLAUDE.md) and ask your assistant to build
 > PowerPoint automation with it. It is generated from the
-> [documentation](https://singerla.github.io/pptx-automizer/) — the hand-written
+> [documentation](https://daborsten.github.io/pptx-templates/) — the hand-written
 > parts are the mental model, the rules list and the minimal example.
 
 ## Mental model (read first)
 
-`pptx-automizer` is a **template-based** .pptx engine for **Node.js (server-side
+`pptx-templates` is a **template-based** .pptx engine for **Node.js (server-side
 only)**. You never build slides from a blank canvas. Instead you:
 
 1. Design slides in **PowerPoint** and save them as template .pptx files. Give
@@ -42,6 +42,8 @@ PptxGenJS bridge (see below) when there is no reasonable template shape.
 <!-- include: docs/selectors.md -->
 
 <!-- include: docs/text.md -->
+
+<!-- include: docs/template-logic.md -->
 
 <!-- include: docs/tables.md -->
 
@@ -99,7 +101,7 @@ PptxGenJS bridge (see below) when there is no reasonable template shape.
 ## Minimal complete example
 
 ```ts
-import Automizer, { modify } from 'pptx-automizer';
+import Automizer, { modify } from 'pptx-templates';
 
 const automizer = new Automizer({
   templateDir: `${__dirname}/templates`,
@@ -136,7 +138,7 @@ console.log(`Done: ${summary.slides} slides in ${summary.file}`);
 
 More examples: the `__tests__/` directory of the repo covers nearly every
 feature (94 runnable scenarios). Full documentation:
-https://singerla.github.io/pptx-automizer/ — every page is also served as
+https://daborsten.github.io/pptx-templates/ — every page is also served as
 Markdown at its URL plus `.md`, indexed in
-https://singerla.github.io/pptx-automizer/llms.txt.
-Repo: https://github.com/singerla/pptx-automizer
+https://daborsten.github.io/pptx-templates/llms.txt.
+Repo: https://github.com/DaBorsten/pptx-templates

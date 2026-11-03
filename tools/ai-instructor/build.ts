@@ -16,7 +16,7 @@ const repoRoot = path.resolve(__dirname, '../..');
 
 // The docs are served from GitHub Pages only (ROADMAP 6.5); every page has a
 // Markdown twin at its URL + `.md`, so relative docs links can be absolutized.
-const SITE_ROOT = 'https://singerla.github.io/pptx-automizer/';
+const SITE_ROOT = 'https://daborsten.github.io/pptx-templates/';
 
 const readDoc = (relPath: string): { title: string; body: string } => {
   const raw = fs.readFileSync(path.join(repoRoot, relPath), 'utf-8');

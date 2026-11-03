@@ -1,0 +1,88 @@
+# Fork addition: publish pptx-templates to npm via trusted publishing (OIDC).
+# No npm token is stored anywhere; npm exchanges the GitHub OIDC token for a
+# short-lived publish credential and attaches provenance automatically.
+#
+# Release: bump "version" in package.json on main, then
+#   git tag v0.1.0 && git push origin v0.1.0
+# (push the single tag, not --tags: the upstream v0.9.x tags would trigger too)
+name: Release
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # OIDC token for npm trusted publishing
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0 # full history, needed for the main check below
+
+      # A tag belongs to a commit, not a branch: only publish tags whose
+      # commit is already on main.
+      - name: Verify the tag points to a commit on main
+        run: |
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::Tag $GITHUB_REF_NAME ($GITHUB_SHA) is not on main"
+            exit 1
+          fi
+
+      - name: Verify the tag matches package.json
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match package.json version $version"
+            exit 1
+          fi
+
+      # Node 26 ships npm >= 11.5.1, the minimum for trusted publishing
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 26.x
+          cache: yarn
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Prepare test directories
+        run: mkdir -p __tests__/pptx-output __tests__/pptx-cache
+
+      - name: Test
+        run: yarn test
+
+      - name: Build
+        run: yarn build
+
+      # npm, not yarn: Yarn 1 cannot publish via OIDC.
+      # Prerelease versions (1.2.3-beta.1) go to the "next" dist-tag.
+      # Skips a version that is already on npm (e.g. 0.1.0, published by hand
+      # because trusted publishing can only be configured for an existing
+      # package), so such a tag and a re-run stay green.
+      - name: Publish
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          if npm view "pptx-templates@$version" version >/dev/null 2>&1; then
+            echo "::notice::pptx-templates@$version is already on npm, skipping"
+            exit 0
+          fi
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
+            npm publish --access public --tag next
+          else
+            npm publish --access public
+          fi

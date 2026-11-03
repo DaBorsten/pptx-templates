@@ -7,7 +7,7 @@ import type HasShapes from './has-shapes';
 /**
  * Placeholder cleanup on written slides: removes duplicate placeholders,
  * strips placeholder tags without a counterpart on the target layout and
- * drops tags pptx-automizer cannot process.
+ * drops tags pptx-templates cannot process.
  *
  * Extracted from HasShapes (ROADMAP Phase 2).
  */
@@ -18,7 +18,7 @@ export class PlaceholderNormalizer {
    * Removes all unsupported tags from slide xml and (with
    * `params.cleanupPlaceholders`) normalizes placeholder shapes.
    * E.g. added relations & tags by Thinkcell cannot be processed
-   * by pptx-automizer at the moment.
+   * by pptx-templates at the moment.
    */
   async cleanSlide(
     targetPath: string,

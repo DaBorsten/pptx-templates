@@ -2,23 +2,23 @@
 slug: /
 title: Introduction
 sidebar_label: Introduction
-description: What pptx-automizer is — a template-based .pptx generator for Node.js that modifies existing PowerPoint templates instead of building slides from scratch.
+description: What pptx-templates is — a template-based .pptx generator for Node.js that modifies existing PowerPoint templates instead of building slides from scratch.
 ---
 
-# pptx-automizer
+# pptx-templates
 
-`pptx-automizer` is a Node.js-based PowerPoint (.pptx) generator that automates
+`pptx-templates` is a Node.js-based PowerPoint (.pptx) generator that automates
 the manipulation of existing .pptx files. Import your library of .pptx
 templates, merge templates, and customize slide content. You can style template
 slides within PowerPoint, and these templates will be seamlessly integrated
 into the output presentation. Most of the content can be modified by using
 callbacks with [xmldom](https://github.com/xmldom/xmldom).
 
-If you need to create elements from scratch, `pptx-automizer` wraps around
+If you need to create elements from scratch, `pptx-templates` wraps around
 [PptxGenJS](https://github.com/gitbrent/PptxGenJS) to add dynamic content to
 your existing .pptx template files.
 
-`pptx-automizer` is particularly well-suited for users who aim to manage their
+`pptx-templates` is particularly well-suited for users who aim to manage their
 own library of .pptx template files, making it an ideal choice for those who
 work with intricate, well-designed customized layouts. With this tool, any
 existing slide or even a single element can serve as a data-driven template for
@@ -27,7 +27,7 @@ generating output .pptx files.
 ## Quick example
 
 ```ts
-import Automizer, { modify } from 'pptx-automizer';
+import Automizer, { modify } from 'pptx-templates';
 
 const automizer = new Automizer({
   // where your template pptx files are coming from:
@@ -72,12 +72,12 @@ you pass. Nothing is applied until `await pres.write(...)` (or `.stream()` /
 - [Requirements and Limitations](./limitations.md) and [Troubleshooting](./troubleshooting.md).
 - [Testing and Validation Tools](./testing.md) — the test suite, the OOXML schema validator and visual regression.
 - [API reference](./api/index.md) — generated from the TypeScript sources.
-- [AI-INSTRUCTOR.md](https://github.com/singerla/pptx-automizer/blob/main/AI-INSTRUCTOR.md)
+- [AI-INSTRUCTOR.md](https://github.com/DaBorsten/pptx-templates/blob/main/AI-INSTRUCTOR.md)
   — a condensed, self-contained guide for AI assistants consuming this
   library (also shipped in the npm package).
 
 ## Support
 
-Thanks to all contributors! You are always welcome to share code, tipps and ideas. We appreciate all levels of expertise and encourage everyone to get involved. [Get started](https://github.com/singerla/pptx-automizer/issues/new)
+Thanks to all contributors! You are always welcome to share code, tipps and ideas. We appreciate all levels of expertise and encourage everyone to get involved. [Get started](https://github.com/DaBorsten/pptx-templates/issues/new)
 
-Found a security problem? Please follow the [security policy](https://github.com/singerla/pptx-automizer/blob/main/SECURITY.md) instead of opening a public issue.
+Found a security problem? Please follow the [security policy](https://github.com/DaBorsten/pptx-templates/blob/main/SECURITY.md) instead of opening a public issue.

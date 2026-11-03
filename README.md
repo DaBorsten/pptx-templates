@@ -1,45 +1,45 @@
-# pptx-automizer: A Powerful .pptx Modifier for Node.js
+# pptx-templates: A Powerful .pptx Modifier for Node.js
 
-[![npm version](https://img.shields.io/npm/v/pptx-automizer.svg)](https://www.npmjs.com/package/pptx-automizer)
-[![CI](https://github.com/singerla/pptx-automizer/actions/workflows/ci.yml/badge.svg)](https://github.com/singerla/pptx-automizer/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/singerla/pptx-automizer/blob/main/LICENSE)
+[![npm version](https://img.shields.io/npm/v/pptx-templates.svg)](https://www.npmjs.com/package/pptx-templates)
+[![CI](https://github.com/DaBorsten/pptx-templates/actions/workflows/ci.yml/badge.svg)](https://github.com/DaBorsten/pptx-templates/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/DaBorsten/pptx-templates/blob/main/LICENSE)
 
-`pptx-automizer` is a Node.js-based PowerPoint (.pptx) generator that automates the manipulation of existing .pptx files. With `pptx-automizer`, you can import your library of .pptx templates, merge templates, and customize slide content. `pptx-automizer` will edit and merge existing pptx files. You can style template slides within PowerPoint, and these templates will be seamlessly integrated into the output presentation. Most of the content can be modified by using callbacks with [xmldom](https://github.com/xmldom/xmldom).
+`pptx-templates` is a Node.js-based PowerPoint (.pptx) generator that automates the manipulation of existing .pptx files. With `pptx-templates`, you can import your library of .pptx templates, merge templates, and customize slide content. `pptx-templates` will edit and merge existing pptx files. You can style template slides within PowerPoint, and these templates will be seamlessly integrated into the output presentation. Most of the content can be modified by using callbacks with [xmldom](https://github.com/xmldom/xmldom).
 
-If you require to create elements from scratch, `pptx-automizer` wraps around [PptxGenJS](https://github.com/gitbrent/PptxGenJS). Use the powerful syntax of `PptxGenJS` to add dynamic content to your existing .pptx template files.
+If you require to create elements from scratch, `pptx-templates` wraps around [PptxGenJS](https://github.com/gitbrent/PptxGenJS). Use the powerful syntax of `PptxGenJS` to add dynamic content to your existing .pptx template files.
 
-`pptx-automizer` is particularly well-suited for users who aim to manage their own library of .pptx template files, making it an ideal choice for those who work with intricate, well-designed customized layouts. With this tool, any existing slide or even a single element can serve as a data-driven template for generating output .pptx files.
+`pptx-templates` is particularly well-suited for users who aim to manage their own library of .pptx template files, making it an ideal choice for those who work with intricate, well-designed customized layouts. With this tool, any existing slide or even a single element can serve as a data-driven template for generating output .pptx files.
 
 ## Documentation
 
-**The full documentation lives at [singerla.github.io/pptx-automizer](https://singerla.github.io/pptx-automizer/)** — guides for every feature area plus the generated API reference:
+**The full documentation lives at [daborsten.github.io/pptx-templates](https://daborsten.github.io/pptx-templates/)** — guides for every feature area plus the generated API reference:
 
-- [Getting started](https://singerla.github.io/pptx-automizer/getting-started) · [Concepts](https://singerla.github.io/pptx-automizer/concepts) · [Selecting slides and shapes](https://singerla.github.io/pptx-automizer/selectors)
-- Modify [Text](https://singerla.github.io/pptx-automizer/text) · [Tables](https://singerla.github.io/pptx-automizer/tables) · [Charts](https://singerla.github.io/pptx-automizer/charts) · [Images](https://singerla.github.io/pptx-automizer/images) · [Masters & Layouts](https://singerla.github.io/pptx-automizer/masters-layouts)
-- [Generate shapes with PptxGenJS](https://singerla.github.io/pptx-automizer/generation) · [Hyperlinks](https://singerla.github.io/pptx-automizer/hyperlinks) · [Slide management](https://singerla.github.io/pptx-automizer/slide-management)
-- [Helper utilities](https://singerla.github.io/pptx-automizer/helpers) · [Output](https://singerla.github.io/pptx-automizer/output) · [Requirements and limitations](https://singerla.github.io/pptx-automizer/limitations) · [Troubleshooting](https://singerla.github.io/pptx-automizer/troubleshooting)
-- [API reference](https://singerla.github.io/pptx-automizer/api)
+- [Getting started](https://daborsten.github.io/pptx-templates/getting-started) · [Concepts](https://daborsten.github.io/pptx-templates/concepts) · [Selecting slides and shapes](https://daborsten.github.io/pptx-templates/selectors)
+- Modify [Text](https://daborsten.github.io/pptx-templates/text) · [Tables](https://daborsten.github.io/pptx-templates/tables) · [Charts](https://daborsten.github.io/pptx-templates/charts) · [Images](https://daborsten.github.io/pptx-templates/images) · [Masters & Layouts](https://daborsten.github.io/pptx-templates/masters-layouts)
+- [Generate shapes with PptxGenJS](https://daborsten.github.io/pptx-templates/generation) · [Hyperlinks](https://daborsten.github.io/pptx-templates/hyperlinks) · [Slide management](https://daborsten.github.io/pptx-templates/slide-management)
+- [Helper utilities](https://daborsten.github.io/pptx-templates/helpers) · [Output](https://daborsten.github.io/pptx-templates/output) · [Requirements and limitations](https://daborsten.github.io/pptx-templates/limitations) · [Troubleshooting](https://daborsten.github.io/pptx-templates/troubleshooting)
+- [API reference](https://daborsten.github.io/pptx-templates/api)
 
-AI assistants consuming this library should read [AI-INSTRUCTOR.md](https://github.com/singerla/pptx-automizer/blob/main/AI-INSTRUCTOR.md), a condensed, self-contained guide that is also shipped in the npm package.
+AI assistants consuming this library should read [AI-INSTRUCTOR.md](https://github.com/DaBorsten/pptx-templates/blob/main/AI-INSTRUCTOR.md), a condensed, self-contained guide that is also shipped in the npm package.
 
 ## Installation
 
 ```
-$ yarn add pptx-automizer
+$ yarn add pptx-templates
 ```
 
 or
 
 ```
-$ npm install pptx-automizer
+$ npm install pptx-templates
 ```
 
-To explore the library from a clone instead, see [Getting started](https://singerla.github.io/pptx-automizer/getting-started).
+To explore the library from a clone instead, see [Getting started](https://daborsten.github.io/pptx-templates/getting-started).
 
 ## Example
 
 ```ts
-import Automizer, { modify } from 'pptx-automizer';
+import Automizer, { modify } from 'pptx-templates';
 
 const automizer = new Automizer({
   // where your template pptx files are coming from:
@@ -67,15 +67,15 @@ const summary = await pres.write('myPresentation.pptx');
 console.log(summary);
 ```
 
-The single most important concept: calls like `addSlide()` and `modifyElement()` only **queue** work — including every modification callback you pass. Nothing is applied until `await pres.write(...)` (or `.stream()` / `.getJSZip()`) executes the whole queue in order. Read more in [Concepts](https://singerla.github.io/pptx-automizer/concepts).
+The single most important concept: calls like `addSlide()` and `modifyElement()` only **queue** work — including every modification callback you pass. Nothing is applied until `await pres.write(...)` (or `.stream()` / `.getJSZip()`) executes the whole queue in order. Read more in [Concepts](https://daborsten.github.io/pptx-templates/concepts).
 
-Take a look into the [`__tests__`-directory](https://github.com/singerla/pptx-automizer/blob/main/__tests__) to see a lot of examples for several use cases. You will also find the example .pptx-files there.
+Take a look into the [`__tests__`-directory](https://github.com/DaBorsten/pptx-templates/blob/main/__tests__) to see a lot of examples for several use cases. You will also find the example .pptx-files there.
 
 ## Support
 
-Thanks to all contributors! You are always welcome to share code, tipps and ideas. We appreciate all levels of expertise and encourage everyone to get involved. Whether you're a seasoned pro or just starting out, your contributions are invaluable. [Get started](https://github.com/singerla/pptx-automizer/issues/new)
+Thanks to all contributors! You are always welcome to share code, tipps and ideas. We appreciate all levels of expertise and encourage everyone to get involved. Whether you're a seasoned pro or just starting out, your contributions are invaluable. [Get started](https://github.com/DaBorsten/pptx-templates/issues/new)
 
-Found a security problem? Please follow the [security policy](https://github.com/singerla/pptx-automizer/blob/main/SECURITY.md) instead of opening a public issue.
+Found a security problem? Please follow the [security policy](https://github.com/DaBorsten/pptx-templates/blob/main/SECURITY.md) instead of opening a public issue.
 
 # Special Thanks
 

@@ -324,7 +324,9 @@ export class XmlTemplateHelper {
 
       return slideNumbers;
     } catch (error) {
-      throw new Error(`Error getting slide numbers: ${error.message}`);
+      throw new Error(`Error getting slide numbers: ${error.message}`, {
+        cause: error,
+      });
     }
   }
 }

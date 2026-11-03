@@ -167,7 +167,7 @@ export default function llmsTxtPlugin(context: LoadContext): Plugin<undefined> {
         '## Optional',
         '',
         `- [llms-full.txt](${siteRoot}llms-full.txt): all documentation pages concatenated into one file`,
-        `- [AI-INSTRUCTOR.md](https://raw.githubusercontent.com/singerla/pptx-automizer/main/AI-INSTRUCTOR.md): compact instructions for AI assistants writing code with pptx-automizer (also shipped in the npm package)`,
+        `- [AI-INSTRUCTOR.md](https://raw.githubusercontent.com/DaBorsten/pptx-templates/main/AI-INSTRUCTOR.md): compact instructions for AI assistants writing code with pptx-templates (also shipped in the npm package)`,
         '',
       ].join('\n');
       fs.writeFileSync(path.join(outDir, 'llms.txt'), llmsTxt);

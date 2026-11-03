@@ -1,9 +1,9 @@
 ---
 title: Concepts
-description: The mental model behind pptx-automizer — deferred execution, the template/root model, numbering, and the one-instance rule.
+description: The mental model behind pptx-templates — deferred execution, the template/root model, numbering, and the one-instance rule.
 ---
 
-Four things explain almost everything about how `pptx-automizer` behaves. Read this page before anything else.
+Four things explain almost everything about how `pptx-templates` behaves. Read this page before anything else.
 
 ## Deferred execution
 
@@ -34,7 +34,7 @@ serve as shape and slide sources. This is how it works internally:
 - Modify the recently added slide
 - Write root template and appended slides as output presentation
 
-`pptx-automizer` is currently limited to _adding_ things to the output
+`pptx-templates` is currently limited to _adding_ things to the output
 presentation. If you require the ability to, for instance, modify a specific
 element on a slide within an existing presentation and leave the rest
 untouched, you will need to include all the other slides in the process — see

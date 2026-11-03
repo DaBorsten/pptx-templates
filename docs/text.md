@@ -6,7 +6,7 @@ description: Set, replace and style text — plain, tagged, MultiText paragraphs
 You can select and import generic shapes from any loaded template. It is possible to update the containing text in several ways:
 
 ```ts
-import { ModifyTextHelper, XmlElement } from 'pptx-automizer';
+import { ModifyTextHelper, XmlElement } from 'pptx-templates';
 
 pres.addSlide('SlideWithImages.pptx', 1, (slide) => {
   // You can directly modify the child nodes of <p:sp>
@@ -23,10 +23,10 @@ pres.addSlide('SlideWithImages.pptx', 1, (slide) => {
 
 ## Replace tagged text
 
-`pptx-automizer` also provides a powerful helper to replace tagged text. You can use e.g. `{{myTag}}` on your slide and apply a modifier to insert dynamic text. Font style can be inherited from template or updated by the modifier.
+`pptx-templates` also provides a powerful helper to replace tagged text. You can use e.g. `{{myTag}}` on your slide and apply a modifier to insert dynamic text. Font style can be inherited from template or updated by the modifier.
 
 ```ts
-import { modify } from 'pptx-automizer';
+import { modify } from 'pptx-templates';
 
 pres.addSlide('TextReplace.pptx', 1, (slide) => {
   slide.modifyElement(
@@ -52,7 +52,7 @@ pres.addSlide('TextReplace.pptx', 1, (slide) => {
 You can use `modify.setMultiText` to replace all text contents of an existing textfield by styled paragraphs, bulleted lists and text runs:
 
 ```ts
-import { modify } from 'pptx-automizer';
+import { modify } from 'pptx-templates';
 
 pres.addSlide('TextReplace.pptx', 1, (slide) => {
   slide.modifyElement(
@@ -98,7 +98,7 @@ one line) — the relative form scales with the paragraph's font size.
 It is also possible to directly convert an HTML page into pptx text contents. HTML code will be flattened and converted into a MultiText array.
 
 ```ts
-import { modify } from 'pptx-automizer';
+import { modify } from 'pptx-templates';
 
 const html =
   '<html><body>' +
@@ -202,14 +202,14 @@ external target (`<a href="https://...">`) or a slide number for an internal
 link (`<a href="3">`). See [What HTML is supported](#what-html-is-supported)
 above for the full tag and CSS coverage, and the tests:
 
-- [Replace text by MultiText objects](https://github.com/singerla/pptx-automizer/blob/main/__tests__/replace-multi-text.test.ts)
-- [Replace text by HTML](https://github.com/singerla/pptx-automizer/blob/main/__tests__/replace-multi-text-html.test.ts)
-- [HTML conversion rules, unit level](https://github.com/singerla/pptx-automizer/blob/main/__tests__/html-to-multitext-converter.test.ts)
+- [Replace text by MultiText objects](https://github.com/DaBorsten/pptx-templates/blob/main/__tests__/replace-multi-text.test.ts)
+- [Replace text by HTML](https://github.com/DaBorsten/pptx-templates/blob/main/__tests__/replace-multi-text-html.test.ts)
+- [HTML conversion rules, unit level](https://github.com/DaBorsten/pptx-templates/blob/main/__tests__/html-to-multitext-converter.test.ts)
 
 ## Find out more
 
-- [Replace and style by tags](https://github.com/singerla/pptx-automizer/blob/main/__tests__/replace-tagged-text.test.ts)
-- [Modify text elements using getAllTextElementIds](https://github.com/singerla/pptx-automizer/blob/main/__tests__/get-all-text-element-ids.test.ts)
-- [Replace text by multitext objects](https://github.com/singerla/pptx-automizer/blob/main/__tests__/replace-multi-text.test.ts)
-- [Soft line breaks inside a text run](https://github.com/singerla/pptx-automizer/blob/main/__tests__/replace-multi-text-linebreaks.test.ts)
-- [Replace text by HTML](https://github.com/singerla/pptx-automizer/blob/main/__tests__/replace-multi-text-html.test.ts)
+- [Replace and style by tags](https://github.com/DaBorsten/pptx-templates/blob/main/__tests__/replace-tagged-text.test.ts)
+- [Modify text elements using getAllTextElementIds](https://github.com/DaBorsten/pptx-templates/blob/main/__tests__/get-all-text-element-ids.test.ts)
+- [Replace text by multitext objects](https://github.com/DaBorsten/pptx-templates/blob/main/__tests__/replace-multi-text.test.ts)
+- [Soft line breaks inside a text run](https://github.com/DaBorsten/pptx-templates/blob/main/__tests__/replace-multi-text-linebreaks.test.ts)
+- [Replace text by HTML](https://github.com/DaBorsten/pptx-templates/blob/main/__tests__/replace-multi-text-html.test.ts)

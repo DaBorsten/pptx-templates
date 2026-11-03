@@ -51,7 +51,7 @@ async function buildSyntheticTemplate(workDir: string): Promise<string> {
 
 async function main() {
   const workDir = await fs.promises.mkdtemp(
-    path.join(os.tmpdir(), 'pptx-automizer-memtest-'),
+    path.join(os.tmpdir(), 'pptx-templates-memtest-'),
   );
 
   try {

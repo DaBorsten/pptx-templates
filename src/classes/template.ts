@@ -99,7 +99,7 @@ export class SourceTemplate extends Template implements PresTemplate {
       this.slideNumbers = await xmlTemplateHelper.getAllSlideNumbers();
       return this.slideNumbers;
     } catch (error) {
-      throw new Error(error.message);
+      throw new Error(error.message, { cause: error });
     }
   }
 

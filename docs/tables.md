@@ -110,5 +110,5 @@ Additional convenience methods:
 
 ## Find out more
 
-- [Modify and style table cells](https://github.com/singerla/pptx-automizer/blob/main/__tests__/modify-existing-table.test.ts)
-- [Insert data into table with empty cells](https://github.com/singerla/pptx-automizer/blob/main/__tests__/modify-existing-table-create-text.test.ts)
+- [Modify and style table cells](https://github.com/DaBorsten/pptx-templates/blob/main/__tests__/modify-existing-table.test.ts)
+- [Insert data into table with empty cells](https://github.com/DaBorsten/pptx-templates/blob/main/__tests__/modify-existing-table-create-text.test.ts)

@@ -93,4 +93,4 @@ slide.generate((pptxGenJSSlide) => {
 });
 ```
 
-See a complete example on [how to add a chart from scratch](https://github.com/singerla/pptx-automizer/blob/main/__tests__/generate-pptxgenjs-charts.test.ts).
+See a complete example on [how to add a chart from scratch](https://github.com/DaBorsten/pptx-templates/blob/main/__tests__/generate-pptxgenjs-charts.test.ts).

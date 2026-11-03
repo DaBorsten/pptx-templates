@@ -3,14 +3,14 @@ title: Hyperlink Management
 description: Add, update and remove external or internal hyperlinks on existing shapes.
 ---
 
-PowerPoint presentations often use hyperlinks to connect to external websites or internal slides. The `pptx-automizer` provides simple and powerful functions to manage hyperlinks in your presentations.
+PowerPoint presentations often use hyperlinks to connect to external websites or internal slides. The `pptx-templates` provides simple and powerful functions to manage hyperlinks in your presentations.
 
 ## Add Hyperlinks to existing shapes
 
 You can add hyperlinks to template text shapes using the `addHyperlink` helper function. The function accepts either a URL string for external links or a slide number for internal slide links:
 
 ```ts
-import { XmlElement } from 'pptx-automizer';
+import { XmlElement } from 'pptx-templates';
 
 // Add an external hyperlink
 slide.modifyElement('TextShape', modify.addHyperlink('https://example.com'));

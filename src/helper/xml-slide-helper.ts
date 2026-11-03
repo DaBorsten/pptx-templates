@@ -111,7 +111,9 @@ export class XmlSlideHelper {
       });
     } catch (error) {
       log.error(error);
-      throw new Error(`Failed to retrieve elements: ${error.message}`);
+      throw new Error(`Failed to retrieve elements: ${error.message}`, {
+        cause: error,
+      });
     }
 
     return elementInfo;
@@ -132,7 +134,9 @@ export class XmlSlideHelper {
       );
     } catch (error) {
       log.error(error);
-      throw new Error(`Failed to retrieve text element IDs: ${error.message}`);
+      throw new Error(`Failed to retrieve text element IDs: ${error.message}`, {
+        cause: error,
+      });
     }
 
     return elementIds;

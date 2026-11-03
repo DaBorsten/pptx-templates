@@ -4,7 +4,7 @@ import { PptPaths } from './ppt-paths';
 
 /**
  * PowerPoint stores each distinct media file once and lets any number of
- * relations point to the same part. pptx-automizer used to copy an imported
+ * relations point to the same part. pptx-templates used to copy an imported
  * image for every shape referencing it, so the same template image on ten
  * slides ended up ten times in ppt/media, bloating the output (see #145).
  *

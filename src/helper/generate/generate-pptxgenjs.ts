@@ -10,6 +10,7 @@ import {
 } from '../../types/types';
 import { IGenerator } from '../../interfaces/igenerator';
 import { IPptxGenJSSlide } from '../../interfaces/ipptxgenjs-slide';
+import { repairSvgFallbacks } from '../../extensions/pptxgenjs-compat';
 
 /**
  * Using pptxGenJs on an automizer ISlide will create a temporary pptx template
@@ -59,7 +60,9 @@ export default class GeneratePptxGenJs implements IGenerator {
     }
 
     if (this.countSlides > 0) {
-      const data = (await this.generator.stream()) as AutomizerFile;
+      const data = await repairSvgFallbacks(
+        (await this.generator.stream()) as AutomizerFile,
+      );
       this.automizer.load(data, this.tmpFile);
 
       // await this.generator.writeFile({

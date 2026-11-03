@@ -33,10 +33,10 @@ pres.addSlide('charts', 2, (slide) => {
 
 Find out more about modifying charts:
 
-- [Modify chart axis](https://github.com/singerla/pptx-automizer/blob/main/__tests__/modify-chart-axis.test.ts)
-- [Dealing with bubble charts](https://github.com/singerla/pptx-automizer/blob/main/__tests__/modify-chart-bubbles.test.ts)
-- [Vertical line charts](https://github.com/singerla/pptx-automizer/blob/main/__tests__/modify-chart-vertical-lines.test.ts)
-- [Style chart series and data points](https://github.com/singerla/pptx-automizer/blob/main/__tests__/modify-existing-chart-styled.test.ts)
+- [Modify chart axis](https://github.com/DaBorsten/pptx-templates/blob/main/__tests__/modify-chart-axis.test.ts)
+- [Dealing with bubble charts](https://github.com/DaBorsten/pptx-templates/blob/main/__tests__/modify-chart-bubbles.test.ts)
+- [Vertical line charts](https://github.com/DaBorsten/pptx-templates/blob/main/__tests__/modify-chart-vertical-lines.test.ts)
+- [Style chart series and data points](https://github.com/DaBorsten/pptx-templates/blob/main/__tests__/modify-existing-chart-styled.test.ts)
 
 ## Modify Extended Charts
 
@@ -109,7 +109,7 @@ slide.modifyElement('ColumnChart', [
 - Data labels
 
 ```ts
-import { LabelPosition } from 'pptx-automizer';
+import { LabelPosition } from 'pptx-templates';
 
 slide.modifyElement('ColumnChart', [
   // format the data labels of all series (or a single series by index)
@@ -153,7 +153,7 @@ slide.modifyElement('VerticalLineChart', [
 The `read` namespace provides callbacks to read information out of a chart without modifying it. They populate the object you pass in (see `__tests__/read-chart-data.test.js`).
 
 ```ts
-import { read, WorkbookData, ChartInfo } from 'pptx-automizer';
+import { read, WorkbookData, ChartInfo } from 'pptx-templates';
 
 const workbookData: WorkbookData = [];
 const chartInfo: ChartInfo = { series: [] };

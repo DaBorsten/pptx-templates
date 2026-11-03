@@ -1,3 +1,6 @@
+// fork extensions (see FORK.md) - keep these two lines first
+import { extensionModifiers } from './extensions';
+export * from './extensions';
 import Automizer from './automizer';
 
 import ModifyHelper, {
@@ -150,6 +153,7 @@ export {
 };
 
 export const modify = {
+  ...extensionModifiers, // fork extensions (see FORK.md)
   dump,
   dumpChart,
   setAttribute,

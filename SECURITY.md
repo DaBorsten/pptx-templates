@@ -2,13 +2,13 @@
 
 ## Supported versions
 
-`pptx-automizer` is pre-1.0. Only the latest published `0.9.x` release
+`pptx-templates` is pre-1.0. Only the latest published `0.1.x` release
 receives security fixes; older versions are not patched. Please upgrade to the
 current release before reporting.
 
 | Version        | Supported |
 | -------------- | --------- |
-| latest `0.9.x` | yes       |
+| latest `0.1.x` | yes       |
 | older          | no        |
 
 ## Reporting a vulnerability
@@ -20,7 +20,7 @@ problem.
 
 A report is easiest to act on when it includes:
 
-- the affected version of `pptx-automizer`
+- the affected version of `pptx-templates`
 - a minimal reproduction, ideally a small sample `.pptx` and the code that
   triggers the problem
 - the impact you see (what an attacker could achieve, and how)

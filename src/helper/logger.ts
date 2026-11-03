@@ -9,7 +9,7 @@ import { AsyncLocalStorage } from 'async_hooks';
 export type Verbosity = 0 | 1 | 2;
 
 /**
- * Minimal logging interface used by pptx-automizer.
+ * Minimal logging interface used by pptx-templates.
  * Inject a custom implementation via `AutomizerParams.logger`
  * to route library output into your own logging stack.
  */
@@ -33,24 +33,24 @@ export class ConsoleLogger implements ILogger {
   }
 
   error(message: unknown, ...details: unknown[]): void {
-    console.error('[pptx-automizer]', message, ...details);
+    console.error('[pptx-templates]', message, ...details);
   }
 
   warn(message: unknown, ...details: unknown[]): void {
     if (this.verbosity >= 1) {
-      console.warn('[pptx-automizer]', message, ...details);
+      console.warn('[pptx-templates]', message, ...details);
     }
   }
 
   info(message: unknown, ...details: unknown[]): void {
     if (this.verbosity >= 2) {
-      console.info('[pptx-automizer]', message, ...details);
+      console.info('[pptx-templates]', message, ...details);
     }
   }
 
   debug(message: unknown, ...details: unknown[]): void {
     if (this.verbosity >= 2) {
-      console.debug('[pptx-automizer]', message, ...details);
+      console.debug('[pptx-templates]', message, ...details);
     }
   }
 }

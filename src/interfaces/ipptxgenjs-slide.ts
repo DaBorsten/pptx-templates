@@ -2,7 +2,7 @@ import type PptxGenJS from 'pptxgenjs';
 import { ModificationCallback } from '../types/types';
 
 /**
- * Usage of pptxGenJs insinde pptx-automizer is restricted to supported
+ * Usage of pptxGenJs insinde pptx-templates is restricted to supported
  * shape types.
  */
 export interface IPptxGenJSSlide {
@@ -49,7 +49,7 @@ export interface IPptxGenJSSlide {
    * Add text to Slide
    * @param {string|TextProps[]} text - text string or complex object
    * @param {TextPropsOptions} options - text options
-   * @param callbacks - use pptx-automizer's modifiers to update the generated textfield
+   * @param callbacks - use pptx-templates's modifiers to update the generated textfield
    */
   addText(
     text: string | PptxGenJS.TextProps[],

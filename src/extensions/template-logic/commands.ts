@@ -1,0 +1,93 @@
+import escape from 'regexp.escape';
+import { RenderTemplateOptions, TemplateCommandType } from './types';
+
+export type ParsedCommand = {
+  type: TemplateCommandType;
+  /** The command without keyword. */
+  code: string;
+  /** FOR: loop variable; ALIAS: alias name. */
+  name?: string;
+};
+
+const IDENT = '[\\p{L}_$][\\p{L}\\p{N}_$]*';
+
+/** Resolved delimiters plus a global regex matching one tag. */
+export const tagSyntax = (
+  options?: Pick<
+    RenderTemplateOptions,
+    'openingTag' | 'closingTag' | 'cmdDelimiter'
+  >,
+) => {
+  const delimiter = options?.cmdDelimiter;
+  const [open, close] = Array.isArray(delimiter)
+    ? delimiter
+    : [delimiter, delimiter];
+  const opening = options?.openingTag ?? open ?? '{{';
+  const closing = options?.closingTag ?? close ?? '}}';
+  return {
+    opening,
+    closing,
+    pattern: new RegExp(
+      `${escape(opening)}([\\s\\S]*?)${escape(closing)}`,
+      'g',
+    ),
+  };
+};
+
+/**
+ * Classifies the inside of a tag (`IF a > 1`, `= name`, `item.price`, …),
+ * following the docx-templates command set. `*alias` references must be
+ * resolved by the caller before.
+ */
+export const parseCommand = (inner: string, tag: string): ParsedCommand => {
+  const content = inner.replace(/\u00A0/g, ' ').trim();
+  if (!content) throw new Error(`Empty template tag ${tag}`);
+  let m: RegExpExecArray;
+
+  if ((m = /^IF\s+([\s\S]+)$/i.exec(content))) {
+    return { type: 'IF', code: m[1].trim() };
+  }
+  if ((m = /^ELSE[-\s]?IF\s+([\s\S]+)$/i.exec(content))) {
+    return { type: 'ELSE-IF', code: m[1].trim() };
+  }
+  if (/^ELSE$/i.test(content)) return { type: 'ELSE', code: '' };
+  if (/^END-?IF\b/i.test(content)) return { type: 'END-IF', code: '' };
+  if ((m = new RegExp(`^FOR\\s+\\$?(${IDENT})\\s+IN\\s+([\\s\\S]+)$`, 'iu').exec(content))) {
+    return { type: 'FOR', name: m[1], code: m[2].trim() };
+  }
+  if (/^END-?FOR\b/i.test(content)) return { type: 'END-FOR', code: '' };
+  if ((m = /^(?:EXEC\s+|!)([\s\S]+)$/i.exec(content))) {
+    return { type: 'EXEC', code: m[1].trim() };
+  }
+  if ((m = new RegExp(`^ALIAS\\s+(${IDENT})\\s+([\\s\\S]+)$`, 'iu').exec(content))) {
+    return { type: 'ALIAS', name: m[1], code: m[2].trim() };
+  }
+  if ((m = /^HTML\s+([\s\S]+)$/i.exec(content))) {
+    return { type: 'HTML', code: m[1].trim() };
+  }
+  if ((m = /^LINK\s+([\s\S]+)$/i.exec(content))) {
+    return { type: 'LINK', code: m[1].trim() };
+  }
+  if ((m = /^IMAGE\s+([\s\S]+)$/i.exec(content))) {
+    return { type: 'IMAGE', code: m[1].trim() };
+  }
+  if ((m = /^(?:=|INS\s)([\s\S]+)$/i.exec(content))) {
+    return { type: 'INS', code: m[1].trim() };
+  }
+  return { type: 'INS', code: content };
+};
+
+/** `*name` → the aliased command; anything else unchanged. */
+export const resolveAlias = (
+  inner: string,
+  aliases: Map<string, string>,
+  tag: string,
+): string => {
+  const m = new RegExp(`^\\s*\\*(${IDENT})\\s*$`, 'u').exec(inner);
+  if (!m) return inner;
+  const command = aliases.get(m[1]);
+  if (command === undefined) {
+    throw new Error(`${tag}: unknown alias "${m[1]}"`);
+  }
+  return command;
+};

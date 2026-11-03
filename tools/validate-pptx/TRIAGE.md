@@ -51,7 +51,7 @@ Look at the flagged parts (`ppt/_rels/presentation.xml.rels`, the slide's
 `_rels/*.rels`, the slide XML at the reported XPath). Two forensic markers help
 attribute each defect:
 
-- **Relationship-id suffixes** — pptx-automizer marks every rel it adds with an
+- **Relationship-id suffixes** — pptx-templates marks every rel it adds with an
   `-created` suffix (`rId7-created`). Original template rels have plain ids.
   A *broken* `-created` rel means the library (or its caller) wrote it.
 - **Target numbering** — a rel target numbered in the *source* template's

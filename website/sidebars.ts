@@ -16,6 +16,7 @@ const sidebars: SidebarsConfig = {
       collapsed: false,
       items: ['text', 'tables', 'charts', 'images', 'masters-layouts'],
     },
+    'template-logic', // fork extension (see FORK.md)
     'generation',
     'hyperlinks',
     'slide-management',

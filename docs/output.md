@@ -37,7 +37,7 @@ By default, a throwing modification callback or an unresolvable element selector
 When creating large presentations, you might want to have some information about the current status. Use a custom status tracker:
 
 ```ts
-import Automizer, { StatusTracker } from 'pptx-automizer';
+import Automizer, { StatusTracker } from 'pptx-templates';
 
 // If you want to track the steps of creation process,
 // you can use a custom callback:

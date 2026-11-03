@@ -1,35 +1,35 @@
 ---
 title: Getting started
-description: Install pptx-automizer and build your first presentation.
+description: Install pptx-templates and build your first presentation.
 ---
 
-There are basically two ways to use `pptx-automizer`.
+There are basically two ways to use `pptx-templates`.
 
 ## Installation
 
 ### As a Package
 
-If you are working on an existing project, you can add `pptx-automizer` to it using npm or yarn. Run
+If you are working on an existing project, you can add `pptx-templates` to it using npm or yarn. Run
 
 ```
-$ yarn add pptx-automizer
+$ yarn add pptx-templates
 ```
 
 or
 
 ```
-$ npm install pptx-automizer
+$ npm install pptx-templates
 ```
 
 in the root folder of your project. This will download and install the most recent version into your existing project.
 
 ### As a Cloned Repository
 
-If you want to see how it works and you like to run own tests, you should clone the [repository](https://github.com/singerla/pptx-automizer) and install the dependencies:
+If you want to see how it works and you like to run own tests, you should clone the [repository](https://github.com/DaBorsten/pptx-templates) and install the dependencies:
 
 ```
-$ git clone git@github.com:singerla/pptx-automizer.git
-$ cd pptx-automizer
+$ git clone git@github.com:DaBorsten/pptx-templates.git
+$ cd pptx-templates
 $ yarn install
 ```
 
@@ -39,14 +39,14 @@ You can now run
 $ yarn dev
 ```
 
-and see the most recent feature from `src/dev.ts`. Every time you change & save this file, you will see new console output and a pptx file in the destination folder. Take a look into the [`__tests__`-directory](https://github.com/singerla/pptx-automizer/blob/main/__tests__) to see a lot of examples for several use cases!
+and see the most recent feature from `src/dev.ts`. Every time you change & save this file, you will see new console output and a pptx file in the destination folder. Take a look into the [`__tests__`-directory](https://github.com/DaBorsten/pptx-templates/blob/main/__tests__) to see a lot of examples for several use cases!
 
 ## Basic Example
 
-This is a basic example on how to use `pptx-automizer` in your code. Before you dive in, make sure you know about [deferred execution](./concepts.md) — nothing is applied until `write()` is called. Most of the examples in these docs make use of [these template files](https://github.com/singerla/pptx-automizer/blob/main/__tests__/pptx-templates).
+This is a basic example on how to use `pptx-templates` in your code. Before you dive in, make sure you know about [deferred execution](./concepts.md) — nothing is applied until `write()` is called. Most of the examples in these docs make use of [these template files](https://github.com/DaBorsten/pptx-templates/blob/main/__tests__/pptx-templates).
 
 ```ts
-import Automizer from 'pptx-automizer';
+import Automizer from 'pptx-templates';
 
 // First, let's set some preferences!
 const automizer = new Automizer({
@@ -173,11 +173,11 @@ See [Output](./output.md) for the other output formats — a `ReadableStream` or
 
 ## More examples
 
-Take a look into the [`__tests__`-directory](https://github.com/singerla/pptx-automizer/blob/main/__tests__) to see a lot of examples for several use cases, e.g.:
+Take a look into the [`__tests__`-directory](https://github.com/DaBorsten/pptx-templates/blob/main/__tests__) to see a lot of examples for several use cases, e.g.:
 
-- [Style chart series or datapoints](https://github.com/singerla/pptx-automizer/blob/main/__tests__/modify-existing-chart-styled.test.ts)
-- [Use tags inside text to replace contents](https://github.com/singerla/pptx-automizer/blob/main/__tests__/replace-tagged-text.test.ts)
-- [Modify vertical line charts](https://github.com/singerla/pptx-automizer/blob/main/__tests__/modify-chart-vertical-lines.test.ts)
-- [Set table cell and border styles](https://github.com/singerla/pptx-automizer/blob/main/__tests__/modify-existing-table.test.ts)
-- [Update chart plot area coordinates](https://github.com/singerla/pptx-automizer/blob/main/__tests__/modify-chart-plot-area.test.ts)
-- [Update chart legend](https://github.com/singerla/pptx-automizer/blob/main/__tests__/modify-chart-legend.test.ts)
+- [Style chart series or datapoints](https://github.com/DaBorsten/pptx-templates/blob/main/__tests__/modify-existing-chart-styled.test.ts)
+- [Use tags inside text to replace contents](https://github.com/DaBorsten/pptx-templates/blob/main/__tests__/replace-tagged-text.test.ts)
+- [Modify vertical line charts](https://github.com/DaBorsten/pptx-templates/blob/main/__tests__/modify-chart-vertical-lines.test.ts)
+- [Set table cell and border styles](https://github.com/DaBorsten/pptx-templates/blob/main/__tests__/modify-existing-table.test.ts)
+- [Update chart plot area coordinates](https://github.com/DaBorsten/pptx-templates/blob/main/__tests__/modify-chart-plot-area.test.ts)
+- [Update chart legend](https://github.com/DaBorsten/pptx-templates/blob/main/__tests__/modify-chart-legend.test.ts)

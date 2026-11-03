@@ -1,4 +1,6 @@
-# AGENTS.md — Working on pptx-automizer
+# AGENTS.md — Working on pptx-templates
+
+> **Fork:** this is a fork. Before adding anything, read [FORK.md](./FORK.md): new features go to `src/extensions/`, and upstream files stay untouched.
 
 Guidance for AI agents (and new contributors) working on this codebase.
 For the improvement plan derived from the 2026-08 architecture audit, see [ROADMAP.md](./ROADMAP.md).
@@ -6,7 +8,7 @@ For the end-user AI guide (how to *use* the library with an AI assistant), see [
 
 ## What this library does
 
-`pptx-automizer` is a **template-based** .pptx generator for Node.js. It does not
+`pptx-templates` is a **template-based** .pptx generator for Node.js. It does not
 build presentations from scratch — it opens existing .pptx files (which are ZIP
 archives of OOXML XML parts), copies slides/masters/shapes between them, and
 mutates the XML through callback-based modifiers. New-from-scratch shapes are
@@ -21,7 +23,7 @@ ZIP archive (via `jszip`, or extracted to disk in `fs` mode).
 |---|---|---|
 | Build | `yarn build` (tsc → `dist/`) | CJS only, no bundler |
 | Test | `yarn test` (jest, ts-jest) | ~94 integration suites; writes real .pptx files to `__tests__/pptx-output/` |
-| Single test | `npx jest __tests__/<name>.test.ts` | |
+| Single test | `yarn test __tests__/<name>.test.ts` | Not plain `npx jest`: pptxgenjs 4 needs `--experimental-vm-modules` (see FORK.md) |
 | Dev sandbox | `yarn dev` | Runs `src/dev.ts` with nodemon; scratchpad for manual testing |
 | Lint | `yarn lint` | **Currently broken**: ESLint 9 is installed but config is legacy `.eslintrc.json` (flat config required). See ROADMAP. |
 | Coverage | `yarn test-coverage` | **Broken glob**: `collectCoverageFrom` in `jest.config.ts` points at `.js` files |

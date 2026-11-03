@@ -3,7 +3,7 @@ title: Testing and Validation Tools
 description: The test suite, the Docker-based OOXML schema validator (validate:pptx), and visual regression via pptx-thumbnailer.
 ---
 
-The repository ships with a layered test system that goes beyond unit tests: every archive written by a test is invariant-checked, all templates and outputs can be validated against the OOXML schema, and curated decks are rendered and pixel-diffed against committed baselines. These tools live in the [repository](https://github.com/singerla/pptx-automizer) (`tools/`), not in the npm package — clone the repo to use them (see [Getting started](./getting-started.md#as-a-cloned-repository)).
+The repository ships with a layered test system that goes beyond unit tests: every archive written by a test is invariant-checked, all templates and outputs can be validated against the OOXML schema, and curated decks are rendered and pixel-diffed against committed baselines. These tools live in the [repository](https://github.com/DaBorsten/pptx-templates) (`tools/`), not in the npm package — clone the repo to use them (see [Getting started](./getting-started.md#as-a-cloned-repository)).
 
 ## Unit and integration tests
 
@@ -52,4 +52,4 @@ Good to know:
 
 ## Contributing
 
-New features need a test with a template .pptx — prefer reusing the existing templates in `__tests__/pptx-templates/` over adding new binaries. If you are contributing with the help of an AI agent, point it at [AGENTS.md](https://github.com/singerla/pptx-automizer/blob/main/AGENTS.md) in the repo root, which states the full rule set for the test tiers.
+New features need a test with a template .pptx — prefer reusing the existing templates in `__tests__/pptx-templates/` over adding new binaries. If you are contributing with the help of an AI agent, point it at [AGENTS.md](https://github.com/DaBorsten/pptx-templates/blob/main/AGENTS.md) in the repo root, which states the full rule set for the test tiers.

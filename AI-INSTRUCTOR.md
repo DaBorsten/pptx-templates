@@ -2,20 +2,20 @@
      Source: tools/ai-instructor/template.md + the docs/ pages it includes.
      Rebuild: yarn docs:ai   (drift is caught by __tests__/ai-instructor.test.ts) -->
 
-# AI Instructor: Generating PowerPoint with pptx-automizer
+# AI Instructor: Generating PowerPoint with pptx-templates
 
 > **For AI assistants (Claude, etc.):** This document teaches you how to write
-> correct code with `pptx-automizer`. Follow it as authoritative instructions.
+> correct code with `pptx-templates`. Follow it as authoritative instructions.
 >
 > **For humans:** Drop this file into your project (or paste it into your AI
 > chat / reference it from your CLAUDE.md) and ask your assistant to build
 > PowerPoint automation with it. It is generated from the
-> [documentation](https://singerla.github.io/pptx-automizer/) — the hand-written
+> [documentation](https://daborsten.github.io/pptx-templates/) — the hand-written
 > parts are the mental model, the rules list and the minimal example.
 
 ## Mental model (read first)
 
-`pptx-automizer` is a **template-based** .pptx engine for **Node.js (server-side
+`pptx-templates` is a **template-based** .pptx engine for **Node.js (server-side
 only)**. You never build slides from a blank canvas. Instead you:
 
 1. Design slides in **PowerPoint** and save them as template .pptx files. Give
@@ -37,7 +37,7 @@ PptxGenJS bridge (see below) when there is no reasonable template shape.
 
 ## Concepts
 
-Four things explain almost everything about how `pptx-automizer` behaves. Read this page before anything else.
+Four things explain almost everything about how `pptx-templates` behaves. Read this page before anything else.
 
 ### Deferred execution
 
@@ -68,11 +68,11 @@ serve as shape and slide sources. This is how it works internally:
 - Modify the recently added slide
 - Write root template and appended slides as output presentation
 
-`pptx-automizer` is currently limited to _adding_ things to the output
+`pptx-templates` is currently limited to _adding_ things to the output
 presentation. If you require the ability to, for instance, modify a specific
 element on a slide within an existing presentation and leave the rest
 untouched, you will need to include all the other slides in the process — see
-[looping through the slides of a presentation](https://singerla.github.io/pptx-automizer/slide-management.md#loop-through-the-slides-of-a-presentation).
+[looping through the slides of a presentation](https://daborsten.github.io/pptx-templates/slide-management.md#loop-through-the-slides-of-a-presentation).
 
 ### 1-based numbering
 
@@ -92,10 +92,10 @@ by a regression test.
 
 ## Basic Example
 
-This is a basic example on how to use `pptx-automizer` in your code. Before you dive in, make sure you know about [deferred execution](https://singerla.github.io/pptx-automizer/concepts.md) — nothing is applied until `write()` is called. Most of the examples in these docs make use of [these template files](https://github.com/singerla/pptx-automizer/blob/main/__tests__/pptx-templates).
+This is a basic example on how to use `pptx-templates` in your code. Before you dive in, make sure you know about [deferred execution](https://daborsten.github.io/pptx-templates/concepts.md) — nothing is applied until `write()` is called. Most of the examples in these docs make use of [these template files](https://github.com/DaBorsten/pptx-templates/blob/main/__tests__/pptx-templates).
 
 ```ts
-import Automizer from 'pptx-automizer';
+import Automizer from 'pptx-templates';
 
 // First, let's set some preferences!
 const automizer = new Automizer({
@@ -218,11 +218,11 @@ const pres = automizer
   .load(contentBuffer, 'content');
 ```
 
-See [Output](https://singerla.github.io/pptx-automizer/output.md) for the other output formats — a `ReadableStream` or the underlying JSZip instance.
+See [Output](https://daborsten.github.io/pptx-templates/output.md) for the other output formats — a `ReadableStream` or the underlying JSZip instance.
 
 ## Selecting slides and shapes
 
-`pptx-automizer` needs a selector to find the required shape on a template slide. While an imported .pptx file is identified by filename or custom label, there are different ways to address its slides and shapes.
+`pptx-templates` needs a selector to find the required shape on a template slide. While an imported .pptx file is identified by filename or custom label, there are different ways to address its slides and shapes.
 
 ### Select slide by number and shape by name
 
@@ -329,7 +329,7 @@ const automizer = new Automizer({
 Regarding shapes, it is also possible to use a `creationId` and the shape name as a fallback. These are the different types of a `FindElementSelector`:
 
 ```ts
-import { FindElementSelector } from 'pptx-automizer';
+import { FindElementSelector } from 'pptx-templates';
 
 // This is default when set up with `useCreationIds: true`:
 const myShapeSelectorCreationId: FindElementSelector =
@@ -372,7 +372,7 @@ There are basically two ways to access a target shape on a slide:
 Modifications can be applied to both in the same way:
 
 ```ts
-import { modify, CmToDxa } from 'pptx-automizer';
+import { modify, CmToDxa } from 'pptx-templates';
 
 pres.addSlide('shapes', 2, (slide) => {
   // This will only work if there is a shape called 'Drum'
@@ -402,7 +402,7 @@ pres.addSlide('shapes', 1, (slide) => {
 
 ### Inspect a slide from inside the callback
 
-Besides `pres.getInfo()` (see the [Basic Example](https://singerla.github.io/pptx-automizer/getting-started.md#basic-example)),
+Besides `pres.getInfo()` (see the [Basic Example](https://daborsten.github.io/pptx-templates/getting-started.md#basic-example)),
 an added slide can describe itself at `write()` time. Prefer inspecting over
 guessing shape names — an unresolvable selector rejects `write()` (or is
 skipped with `continueOnError: true`), so listing what is actually there beats
@@ -424,7 +424,7 @@ pres.addSlide('myTemplate.pptx', 1, async (slide) => {
 When processing an added slide, you might want to apply a modifier to any existing text element. Call `slide.getAllTextElementIds()` for this:
 
 ```ts
-import Automizer, { modify } from 'pptx-automizer';
+import Automizer, { modify } from 'pptx-templates';
 
 pres.addSlide('myTemplate.pptx', 1, async (slide) => {
   const elements = await slide.getAllTextElementIds();
@@ -451,7 +451,7 @@ pres.addSlide('myTemplate.pptx', 1, async (slide) => {
 You can select and import generic shapes from any loaded template. It is possible to update the containing text in several ways:
 
 ```ts
-import { ModifyTextHelper, XmlElement } from 'pptx-automizer';
+import { ModifyTextHelper, XmlElement } from 'pptx-templates';
 
 pres.addSlide('SlideWithImages.pptx', 1, (slide) => {
   // You can directly modify the child nodes of <p:sp>
@@ -468,10 +468,10 @@ pres.addSlide('SlideWithImages.pptx', 1, (slide) => {
 
 ### Replace tagged text
 
-`pptx-automizer` also provides a powerful helper to replace tagged text. You can use e.g. `{{myTag}}` on your slide and apply a modifier to insert dynamic text. Font style can be inherited from template or updated by the modifier.
+`pptx-templates` also provides a powerful helper to replace tagged text. You can use e.g. `{{myTag}}` on your slide and apply a modifier to insert dynamic text. Font style can be inherited from template or updated by the modifier.
 
 ```ts
-import { modify } from 'pptx-automizer';
+import { modify } from 'pptx-templates';
 
 pres.addSlide('TextReplace.pptx', 1, (slide) => {
   slide.modifyElement(
@@ -497,7 +497,7 @@ pres.addSlide('TextReplace.pptx', 1, (slide) => {
 You can use `modify.setMultiText` to replace all text contents of an existing textfield by styled paragraphs, bulleted lists and text runs:
 
 ```ts
-import { modify } from 'pptx-automizer';
+import { modify } from 'pptx-templates';
 
 pres.addSlide('TextReplace.pptx', 1, (slide) => {
   slide.modifyElement(
@@ -543,7 +543,7 @@ one line) — the relative form scales with the paragraph's font size.
 It is also possible to directly convert an HTML page into pptx text contents. HTML code will be flattened and converted into a MultiText array.
 
 ```ts
-import { modify } from 'pptx-automizer';
+import { modify } from 'pptx-templates';
 
 const html =
   '<html><body>' +
@@ -608,7 +608,7 @@ Good to know:
   fallback style, so generated text keeps the template's look.
 - `<table>` markup has no equivalent in a single text shape: the cell text is
   kept, but flattened into one paragraph. Use `modify.setTableData` for
-  [tables](https://singerla.github.io/pptx-automizer/tables.md).
+  [tables](https://daborsten.github.io/pptx-templates/tables.md).
 - `<a href="4">` is a slide **number in the finished output deck**, counting the
   root template's existing slides — not the index of your `addSlide()` calls.
   The target slide has to exist, or the relationship dangles and PowerPoint
@@ -647,17 +647,229 @@ external target (`<a href="https://...">`) or a slide number for an internal
 link (`<a href="3">`). See [What HTML is supported](#what-html-is-supported)
 above for the full tag and CSS coverage, and the tests:
 
-- [Replace text by MultiText objects](https://github.com/singerla/pptx-automizer/blob/main/__tests__/replace-multi-text.test.ts)
-- [Replace text by HTML](https://github.com/singerla/pptx-automizer/blob/main/__tests__/replace-multi-text-html.test.ts)
-- [HTML conversion rules, unit level](https://github.com/singerla/pptx-automizer/blob/main/__tests__/html-to-multitext-converter.test.ts)
+- [Replace text by MultiText objects](https://github.com/DaBorsten/pptx-templates/blob/main/__tests__/replace-multi-text.test.ts)
+- [Replace text by HTML](https://github.com/DaBorsten/pptx-templates/blob/main/__tests__/replace-multi-text-html.test.ts)
+- [HTML conversion rules, unit level](https://github.com/DaBorsten/pptx-templates/blob/main/__tests__/html-to-multitext-converter.test.ts)
 
 ### Find out more
 
-- [Replace and style by tags](https://github.com/singerla/pptx-automizer/blob/main/__tests__/replace-tagged-text.test.ts)
-- [Modify text elements using getAllTextElementIds](https://github.com/singerla/pptx-automizer/blob/main/__tests__/get-all-text-element-ids.test.ts)
-- [Replace text by multitext objects](https://github.com/singerla/pptx-automizer/blob/main/__tests__/replace-multi-text.test.ts)
-- [Soft line breaks inside a text run](https://github.com/singerla/pptx-automizer/blob/main/__tests__/replace-multi-text-linebreaks.test.ts)
-- [Replace text by HTML](https://github.com/singerla/pptx-automizer/blob/main/__tests__/replace-multi-text-html.test.ts)
+- [Replace and style by tags](https://github.com/DaBorsten/pptx-templates/blob/main/__tests__/replace-tagged-text.test.ts)
+- [Modify text elements using getAllTextElementIds](https://github.com/DaBorsten/pptx-templates/blob/main/__tests__/get-all-text-element-ids.test.ts)
+- [Replace text by multitext objects](https://github.com/DaBorsten/pptx-templates/blob/main/__tests__/replace-multi-text.test.ts)
+- [Soft line breaks inside a text run](https://github.com/DaBorsten/pptx-templates/blob/main/__tests__/replace-multi-text-linebreaks.test.ts)
+- [Replace text by HTML](https://github.com/DaBorsten/pptx-templates/blob/main/__tests__/replace-multi-text-html.test.ts)
+
+## Template Logic
+
+`modify.renderTemplate` goes further than `replaceText`. You write the logic
+straight into the text of your slide, in the style of
+[docx-templates](https://github.com/guigrpa/docx-templates), and pass the data
+when you build the deck:
+
+```text
+Hello {{user.name}}!
+{{IF user.orders > 10}}
+Thank you for being a loyal customer.
+{{ELSE}}
+Have a look at our new offers.
+{{END-IF}}
+{{FOR item IN items}}
+{{$idx + 1}}. {{item.name}}: {{item.price.toFixed(2)}} €
+{{END-FOR}}
+```
+
+```ts
+import { modify } from 'pptx-templates';
+
+const data = {
+  user: { name: 'Ada', orders: 12 },
+  items: [
+    { name: 'Apples', price: 1.5 },
+    { name: 'Pears', price: 2 },
+  ],
+  upper: (text: string) => text.toUpperCase(),
+};
+
+pres.addSlide('TextReplace.pptx', 1, (slide) => {
+  // A single shape (or table) ...
+  slide.modifyElement('setText', modify.renderTemplate(data));
+});
+
+pres.addSlide('TextReplace.pptx', 1, (slide) => {
+  // ... or every shape and table on the slide
+  slide.modify(modify.renderTemplate(data));
+});
+```
+
+### Commands
+
+| Tag | Effect |
+|---|---|
+| `{{expr}}`, `{{= expr}}`, `{{INS expr}}` | Insert the value. `null`/`undefined` insert nothing, arrays are joined with `, `, and `\n` becomes a line break |
+| `{{IF expr}}` … `{{ELSE-IF expr}}` … `{{ELSE}}` … `{{END-IF}}` | Keep the first branch whose condition is truthy |
+| `{{FOR item IN expr}}` … `{{END-FOR}}` | Repeat the content for each entry. Inside the loop, `item` and `$item` are the entry and `$idx` is the 0-based index |
+| `{{EXEC name = expr; other = expr}}`, `{{! …}}` | Set variables for the rest of the slide. Nothing is inserted |
+| `{{ALIAS name command}}` … `{{*name}}` | Define a shorthand for a command, e.g. `{{ALIAS fullName INS user.first + ' ' + user.last}}` |
+| `{{HTML expr}}` | Insert HTML as formatted paragraphs (bold, italic, lists, links, …) through the [HTML converter](https://daborsten.github.io/pptx-templates/text.md) |
+| `{{LINK expr}}` | Insert a hyperlink. `expr` is a URL or `({ url, label })`. A number as `url` links to that slide of the output |
+| `{{IMAGE expr}}` | Place a picture where the shape is (see [Images](#images)). Needs `slide.modify` |
+
+Keywords are case-insensitive. A block can sit inside one paragraph
+(`Status: {{IF ok}}fine{{ELSE}}broken{{END-IF}}`) or span paragraphs. A
+paragraph that holds nothing but control tags (`IF`, `ELSE`, `END-FOR`,
+`EXEC`, `ALIAS`, `HTML`, …) is removed from the output, so you can put each
+tag on its own line, as in the example above.
+
+Variables set with `EXEC` are visible in all later tags of the same render
+call, also in later shapes, and inside loops they update the variable of the
+enclosing scope:
+
+```text
+{{EXEC total = 0}}
+{{FOR item IN items}}{{! total = total + item.price}}{{END-FOR}}
+Total: {{total.toFixed(2)}}
+```
+
+Your `data` is never changed: an `EXEC` that assigns a name from `data`
+defines a new variable that hides it.
+
+### Tables
+
+If a block opens in a cell and is not closed in that same cell, it spans
+table rows. `{{FOR row IN rows}}` in the first cell and `{{END-FOR}}` in the
+last cell of a row repeats that row once per entry. An `IF` placed the same
+way keeps or removes the row. A row that holds nothing but control tags is
+dropped. `ELSE` cannot span rows. Merged cells (`rowSpan`) are not adjusted,
+and the table frame's height is set to the sum of its row heights.
+
+### Images
+
+`{{IMAGE …}}` takes an object like in docx-templates:
+
+```ts
+import fs from 'fs';
+import { modify } from 'pptx-templates';
+
+pres.addSlide('TextReplace.pptx', 1, (slide) => {
+  // IMAGE writes media files, so it only works through slide.modify()
+  slide.modify(
+    modify.renderTemplate({
+      logo: fs.readFileSync('images/logo.png'),
+      photos: ['data:image/jpeg;base64,/9j/4AAQ…'],
+    }),
+  );
+});
+```
+
+```text
+{{IMAGE ({ data: logo, extension: '.png', width: 4, alt: 'Logo' })}}
+{{FOR p IN photos}}{{IMAGE ({ data: p })}}{{END-FOR}}
+```
+
+| Property | Effect |
+|---|---|
+| `data` | `Buffer`, `ArrayBuffer`, base64 string or data URL (`data:image/png;base64,…`) |
+| `extension` | `.png`, `.jpg`, `.jpeg` or `.gif`. Optional for data URLs |
+| `width`, `height` | Size in cm. With only one of them, the other keeps the aspect ratio. Without both, the picture fits into the shape, keeping its aspect ratio |
+| `alt` | Alternative text |
+| `rotation` | Rotation in degrees, clockwise |
+
+PPTX text cannot contain pictures, so the picture is placed **at the shape
+that holds the tag**, centered in its frame. Several pictures from one shape,
+for example from a `FOR` loop, are placed side by side, each centered in an
+equal share of the frame. If no text is left in the shape after rendering,
+the shape is removed and only the pictures remain.
+
+- The shape needs its own position and size. Placeholders that inherit
+  them from the layout are not supported.
+- `IMAGE` in table cells is not supported.
+- Identical images are stored only once in the output.
+- `IMAGE` writes a media file, so it needs `slide.modify(modify.renderTemplate(…))`.
+  A `modifyElement()` callback cannot add files and rejects with an error.
+
+### Expressions
+
+Expressions support property paths (`a.b`, `a[0]`, `a['key']`, `a?.b`),
+string/number/boolean literals, object and array literals
+(`({ url: x, label: 'Home' })`, `[1, 2]`), arrow functions
+(`items.filter(i => i.active)`, `(a, b) => a - b`), `! - + * / %`,
+comparisons, `== != === !==`, `&& || ??` and `cond ? a : b`. You can call
+your own functions (passed in `data`) and methods of the values
+(`name.toUpperCase()`).
+
+They are evaluated by a small built-in interpreter, not with `eval`, so a
+template cannot run arbitrary code: there are no assignments outside `EXEC`,
+no `new`, and keys like `constructor`, `prototype` or `__proto__` are
+rejected. Typographic quotes inserted by PowerPoint's AutoCorrect (`“Ada”`)
+are valid string delimiters.
+
+Wrap an object literal in parentheses: `{{LINK ({ url: x })}}`. Without them,
+the `}}` of the object closes the tag.
+
+### Async data
+
+`data` can be a Promise, and functions in `data` can return Promises. The
+result of every tag is awaited, so `{{FOR p IN loadProjects()}}` works. To use
+properties of an async result, store it first:
+`{{EXEC user = loadUser()}}{{user.name}}`.
+
+### Options
+
+```ts
+import { modify } from 'pptx-templates';
+
+pres.addSlide('TextReplace.pptx', 1, (slide) => {
+  slide.modify(
+    modify.renderTemplate(
+      { price: 2 },
+      {
+        cmdDelimiter: ['[[', ']]'], // or openingTag / closingTag
+        additionalJsContext: {
+          money: (n: number) => `${n.toFixed(2)} €`,
+        },
+        rejectNullish: true,
+        errorHandler: (error, command) => `#ERR ${command}`,
+      },
+    ),
+  );
+});
+```
+
+| Option | Default | Effect |
+|---|---|---|
+| `openingTag`, `closingTag` | `{{`, `}}` | Tag delimiters |
+| `cmdDelimiter` | | docx-templates spelling: one string for both sides (`'+++'`) or `[open, close]` |
+| `additionalJsContext` | | Extra helpers and constants. `data` takes precedence |
+| `strict` | `false` | Throw on unknown top-level names instead of treating them as `undefined` |
+| `rejectNullish` | `false` | Throw when an insertion is `null` or `undefined` |
+| `errorHandler(error, command)` | | Called when a command fails. Its return value is used instead (inserted text, condition, list, …) |
+| `failFast` | `true` | `false`: keep going and throw one error listing all failed commands at the end |
+| `processLineBreaks` | `true` | Turn `\n` in inserted values into line breaks |
+
+### Listing the commands of a template
+
+`listTemplateCommands` reads a .pptx and returns every tag, slide by slide,
+the way `listCommands` does in docx-templates. Use it to check a template, or
+to find out which data it expects:
+
+```ts
+import { listTemplateCommands } from 'pptx-templates';
+
+const commands = await listTemplateCommands('templates/Offer.pptx');
+// [{ slide: 1, shape: 'Title', raw: '{{IF user.vip}}', type: 'IF', code: 'user.vip' }, …]
+```
+
+### Good to know
+
+- PowerPoint often splits text into several runs, even inside a tag (spell
+  check, partial edits). Tags are joined across runs, and the inserted value
+  takes the formatting of the run where the tag starts.
+- An unknown name evaluates to `undefined`, so `{{IF user.vip}}` is simply
+  false when `vip` is missing.
+- Errors (an unclosed `{{IF}}`, an `END-FOR` without `FOR`, invalid syntax)
+  reject `write()` with an error message that names the tag.
+- Text inserted from your data is never rendered again, so a value that
+  contains `{{` stays literal.
 
 ## Modify Tables
 
@@ -768,8 +980,8 @@ Additional convenience methods:
 
 ### Find out more
 
-- [Modify and style table cells](https://github.com/singerla/pptx-automizer/blob/main/__tests__/modify-existing-table.test.ts)
-- [Insert data into table with empty cells](https://github.com/singerla/pptx-automizer/blob/main/__tests__/modify-existing-table-create-text.test.ts)
+- [Modify and style table cells](https://github.com/DaBorsten/pptx-templates/blob/main/__tests__/modify-existing-table.test.ts)
+- [Insert data into table with empty cells](https://github.com/DaBorsten/pptx-templates/blob/main/__tests__/modify-existing-table-create-text.test.ts)
 
 ## Modify Charts
 
@@ -803,10 +1015,10 @@ pres.addSlide('charts', 2, (slide) => {
 
 Find out more about modifying charts:
 
-- [Modify chart axis](https://github.com/singerla/pptx-automizer/blob/main/__tests__/modify-chart-axis.test.ts)
-- [Dealing with bubble charts](https://github.com/singerla/pptx-automizer/blob/main/__tests__/modify-chart-bubbles.test.ts)
-- [Vertical line charts](https://github.com/singerla/pptx-automizer/blob/main/__tests__/modify-chart-vertical-lines.test.ts)
-- [Style chart series and data points](https://github.com/singerla/pptx-automizer/blob/main/__tests__/modify-existing-chart-styled.test.ts)
+- [Modify chart axis](https://github.com/DaBorsten/pptx-templates/blob/main/__tests__/modify-chart-axis.test.ts)
+- [Dealing with bubble charts](https://github.com/DaBorsten/pptx-templates/blob/main/__tests__/modify-chart-bubbles.test.ts)
+- [Vertical line charts](https://github.com/DaBorsten/pptx-templates/blob/main/__tests__/modify-chart-vertical-lines.test.ts)
+- [Style chart series and data points](https://github.com/DaBorsten/pptx-templates/blob/main/__tests__/modify-existing-chart-styled.test.ts)
 
 ### Modify Extended Charts
 
@@ -879,7 +1091,7 @@ slide.modifyElement('ColumnChart', [
 - Data labels
 
 ```ts
-import { LabelPosition } from 'pptx-automizer';
+import { LabelPosition } from 'pptx-templates';
 
 slide.modifyElement('ColumnChart', [
   // format the data labels of all series (or a single series by index)
@@ -923,7 +1135,7 @@ slide.modifyElement('VerticalLineChart', [
 The `read` namespace provides callbacks to read information out of a chart without modifying it. They populate the object you pass in (see `__tests__/read-chart-data.test.js`).
 
 ```ts
-import { read, WorkbookData, ChartInfo } from 'pptx-automizer';
+import { read, WorkbookData, ChartInfo } from 'pptx-templates';
 
 const workbookData: WorkbookData = [];
 const chartInfo: ChartInfo = { series: [] };
@@ -938,7 +1150,7 @@ slide.modifyElement('ColumnChart', [
 
 ## Modify Images
 
-`pptx-automizer` can extract images from loaded .pptx template files and add to your output presentation. You can use shape modifiers (e.g. for size and position) on images, too. Additionally, it is possible to load external media files directly and update relation `Target` of an existing image. This works on both, existing or added images.
+`pptx-templates` can extract images from loaded .pptx template files and add to your output presentation. You can use shape modifiers (e.g. for size and position) on images, too. Additionally, it is possible to load external media files directly and update relation `Target` of an existing image. This works on both, existing or added images.
 
 ```ts
 const automizer = new Automizer({
@@ -1016,13 +1228,13 @@ slide.modifyElement('Icon', [
 
 ### Find out more
 
-- [Add external image](https://github.com/singerla/pptx-automizer/blob/main/__tests__/add-external-image.test.ts)
-- [Modify duotone color overlay for images](https://github.com/singerla/pptx-automizer/blob/main/__tests__/modify-image-duotone.test.ts)
-- [Swap image source on a slide master](https://github.com/singerla/pptx-automizer/blob/main/__tests__/modify-master-external-image.test.ts)
+- [Add external image](https://github.com/DaBorsten/pptx-templates/blob/main/__tests__/add-external-image.test.ts)
+- [Modify duotone color overlay for images](https://github.com/DaBorsten/pptx-templates/blob/main/__tests__/modify-image-duotone.test.ts)
+- [Swap image source on a slide master](https://github.com/DaBorsten/pptx-templates/blob/main/__tests__/modify-master-external-image.test.ts)
 
 ## Slide Masters and Layouts
 
-`pptx-automizer` supports importing slide masters and their associated slide layouts into the output presentation, modifying the masters and layouts that are already in the root template in place, and removing a master together with its layouts. Individual layouts cannot be imported on their own — a layout always comes with its master. A modification on a slideMaster appears on all related slideLayouts.
+`pptx-templates` supports importing slide masters and their associated slide layouts into the output presentation, modifying the masters and layouts that are already in the root template in place, and removing a master together with its layouts. Individual layouts cannot be imported on their own — a layout always comes with its master. A modification on a slideMaster appears on all related slideLayouts.
 
 Please be aware that importing slide layouts containing complex content, such as charts and images, is currently not supported. For instance, if a slide layout includes an icon that is not present on the slide master, this icon will break when the slide master is auto-imported into an output presentation. To avoid this issue, ensure that all images and charts are placed exclusively on a slide master and not on a slide layout.
 
@@ -1033,7 +1245,7 @@ You can import, modify and use one or more slideMasters and the related slideLay
 To specify the target index of the required slide master to import, you need to count slideMasters in your _template_ presentation.
 To specify another slideLayout for an added output slide, you need to count slideLayouts in your _output_ presentation.
 
-To add and modify shapes on a slide master, please take a look at [Find and Modify Shapes](https://singerla.github.io/pptx-automizer/selectors.md#find-and-modify-shapes) — masters use the same selectors and modifiers as slides.
+To add and modify shapes on a slide master, please take a look at [Find and Modify Shapes](https://daborsten.github.io/pptx-templates/selectors.md#find-and-modify-shapes) — masters use the same selectors and modifiers as slides.
 
 ```ts
 // Import another slide master and all its slide layouts.
@@ -1201,7 +1413,7 @@ Please notice: If your root template and your imported slides have an equal stru
 If you have trouble with messed up slideMasters, and if you don't worry about the impact on performance, you can try and set `autoImportSlideMasters: true` to always import all required files:
 
 ```ts
-import Automizer from 'pptx-automizer';
+import Automizer from 'pptx-templates';
 
 const automizer = new Automizer({
   // ...
@@ -1265,7 +1477,7 @@ pres.addSlide('empty', 1, (slide) => {
 
 Note: inside `generate`, coordinates and sizes are in **inches** (PptxGenJS
 convention) — unlike `modify.setPosition`, which uses EMU/DXA values (see the
-[units reference](https://singerla.github.io/pptx-automizer/helpers.md#units-reference)).
+[units reference](https://daborsten.github.io/pptx-templates/helpers.md#units-reference)).
 
 You can use the following functions to generate shapes with `pptxGenJS`:
 
@@ -1277,7 +1489,7 @@ You can use the following functions to generate shapes with `pptxGenJS`:
 
 ### Create a new hyperlinked text shape
 
-It is also possible to create a new hyperlink from scratch with the `pptxGenJS` wrapper. This is useful if you want to add hyperlinks to shapes that are not part of the template. (To manage hyperlinks on *existing* template shapes, see [Hyperlink Management](https://singerla.github.io/pptx-automizer/hyperlinks.md).)
+It is also possible to create a new hyperlink from scratch with the `pptxGenJS` wrapper. This is useful if you want to add hyperlinks to shapes that are not part of the template. (To manage hyperlinks on *existing* template shapes, see [Hyperlink Management](https://daborsten.github.io/pptx-templates/hyperlinks.md).)
 
 ```ts
 // Generate a new text shape pointing to an external site
@@ -1305,18 +1517,18 @@ slide.generate((pptxGenJSSlide) => {
 });
 ```
 
-See a complete example on [how to add a chart from scratch](https://github.com/singerla/pptx-automizer/blob/main/__tests__/generate-pptxgenjs-charts.test.ts).
+See a complete example on [how to add a chart from scratch](https://github.com/DaBorsten/pptx-templates/blob/main/__tests__/generate-pptxgenjs-charts.test.ts).
 
 ## Hyperlink Management
 
-PowerPoint presentations often use hyperlinks to connect to external websites or internal slides. The `pptx-automizer` provides simple and powerful functions to manage hyperlinks in your presentations.
+PowerPoint presentations often use hyperlinks to connect to external websites or internal slides. The `pptx-templates` provides simple and powerful functions to manage hyperlinks in your presentations.
 
 ### Add Hyperlinks to existing shapes
 
 You can add hyperlinks to template text shapes using the `addHyperlink` helper function. The function accepts either a URL string for external links or a slide number for internal slide links:
 
 ```ts
-import { XmlElement } from 'pptx-automizer';
+import { XmlElement } from 'pptx-templates';
 
 // Add an external hyperlink
 slide.modifyElement('TextShape', modify.addHyperlink('https://example.com'));
@@ -1349,8 +1561,8 @@ slide.modifyElement('TextShape', modify.removeHyperlink());
 
 ### Related
 
-- To create a **new** hyperlinked shape from scratch, use the PptxGenJS wrapper — see [Generate shapes with PptxGenJS](https://singerla.github.io/pptx-automizer/generation.md#create-a-new-hyperlinked-text-shape).
-- Inline hyperlinks inside generated text (external targets or slide numbers) are also supported by the [MultiText/HTML text helpers](https://singerla.github.io/pptx-automizer/text.md#text-helpers-multitexthtml).
+- To create a **new** hyperlinked shape from scratch, use the PptxGenJS wrapper — see [Generate shapes with PptxGenJS](https://daborsten.github.io/pptx-templates/generation.md#create-a-new-hyperlinked-text-shape).
+- Inline hyperlinks inside generated text (external targets or slide numbers) are also supported by the [MultiText/HTML text helpers](https://daborsten.github.io/pptx-templates/text.md#text-helpers-multitexthtml).
 
 ## Slide Management
 
@@ -1373,7 +1585,7 @@ pres
 
 ### Loop through the slides of a presentation
 
-If you would like to modify elements in a single .pptx file, it is important to know that `pptx-automizer` is not able to directly "jump" to a shape to modify it — see [the template/root model](https://singerla.github.io/pptx-automizer/concepts.md#the-templateroot-model) for how it works internally.
+If you would like to modify elements in a single .pptx file, it is important to know that `pptx-templates` is not able to directly "jump" to a shape to modify it — see [the template/root model](https://daborsten.github.io/pptx-templates/concepts.md#the-templateroot-model) for how it works internally.
 
 In case you need to apply modifications to the root template, you need to load it as a normal template:
 
@@ -1384,7 +1596,7 @@ import Automizer, {
   ModifyColorHelper,
   ModifyShapeHelper,
   ModifyTextHelper,
-} from 'pptx-automizer';
+} from 'pptx-templates';
 
 const run = async () => {
   const automizer = new Automizer({
@@ -1471,7 +1683,7 @@ There are three ways to arrange slides in an output presentation.
 2. You can alternatively remove all existing slides by setting the `removeExistingSlides` flag to true. The first slide added with `addSlide` will be first slide in the output presentation. If you want to insert slides from root template, you need to load it a second time.
 
 ```ts
-import Automizer from 'pptx-automizer';
+import Automizer from 'pptx-templates';
 
 const automizer = new Automizer({
   templateDir: `my/pptx/templates`,
@@ -1507,7 +1719,7 @@ pres.write(`mySortedPresentation.pptx`).then((summary) => {
 Slides will be appended to the existing slides by slide number (starting from 1). You may find irritating results in case you skip a slide number.
 
 ```ts
-import { ModifyPresentationHelper } from 'pptx-automizer';
+import { ModifyPresentationHelper } from 'pptx-templates';
 
 //
 // You may truncate root template or you may not
@@ -1526,7 +1738,7 @@ pres.modify(ModifyPresentationHelper.sortSlides(order));
 
 ## Helper Utilities
 
-This section documents handy helpers exposed by `pptx-automizer` that provide extra capabilities. You can import helpers directly from the package:
+This section documents handy helpers exposed by `pptx-templates` that provide extra capabilities. You can import helpers directly from the package:
 
 ```ts
 import {
@@ -1535,14 +1747,14 @@ import {
   ModifyCleanupHelper,
   ModifyTextHelper,
   ModifyImageHelper,
-} from 'pptx-automizer';
+} from 'pptx-templates';
 ```
 
 Some helper families are documented with their feature area:
 
-- [Table helpers](https://singerla.github.io/pptx-automizer/tables.md#table-helpers) (`ModifyTableHelper`)
-- [Text helpers (MultiText/HTML)](https://singerla.github.io/pptx-automizer/text.md#text-helpers-multitexthtml) (`ModifyTextHelper`)
-- [Image helpers](https://singerla.github.io/pptx-automizer/images.md#image-helpers) (`ModifyImageHelper`)
+- [Table helpers](https://daborsten.github.io/pptx-templates/tables.md#table-helpers) (`ModifyTableHelper`)
+- [Text helpers (MultiText/HTML)](https://daborsten.github.io/pptx-templates/text.md#text-helpers-multitexthtml) (`ModifyTextHelper`)
+- [Image helpers](https://daborsten.github.io/pptx-templates/images.md#image-helpers) (`ModifyImageHelper`)
 
 ### Shape helpers
 
@@ -1560,7 +1772,7 @@ slide.modifyElement('MyShape', [
 - Outline (line) width, color and dash style
 
 ```ts
-import { PtToEmu } from 'pptx-automizer';
+import { PtToEmu } from 'pptx-templates';
 
 slide.modifyElement('MyShape', [
   ModifyShapeHelper.setOutline({
@@ -1585,7 +1797,7 @@ slide.modifyElement('MyTextBox', [
 ]);
 ```
 
-- Replace tagged text (see [Replace tagged text](https://singerla.github.io/pptx-automizer/text.md#replace-tagged-text) for the
+- Replace tagged text (see [Replace tagged text](https://daborsten.github.io/pptx-templates/text.md#replace-tagged-text) for the
   tag concept; the default delimiters are `{{` and `}}`)
 
 ```ts
@@ -1603,7 +1815,7 @@ slide.modifyElement('MyTextBox', [
 - Position, size, rotation, rounded corners
 
 ```ts
-import { CmToDxa } from 'pptx-automizer';
+import { CmToDxa } from 'pptx-templates';
 
 slide.modifyElement('MyShape', [
   // set absolute position/size
@@ -1622,7 +1834,7 @@ slide.modifyElement('MyShape', [
 `ModifyCleanupHelper` helps remove formatting noise from shapes when you need a clean base.
 
 ```ts
-import { XmlElement } from 'pptx-automizer';
+import { XmlElement } from 'pptx-templates';
 
 slide.modifyElement('MyShape', [
   ModifyCleanupHelper.removeBackground,
@@ -1650,7 +1862,7 @@ Other useful helpers include: `removeTextEffects`, `removeFillEffects`, `remove3
 PowerPoint stores coordinates and sizes in the `dxa` (EMU) unit. Use the exported converters to work with centimeters instead:
 
 ```ts
-import { CmToDxa, DxaToCm } from 'pptx-automizer';
+import { CmToDxa, DxaToCm } from 'pptx-templates';
 
 // centimeters -> dxa (e.g. when setting position/size)
 const widthInDxa = CmToDxa(6); // 2160000
@@ -1662,7 +1874,7 @@ const widthInCm = DxaToCm(2160000); // 6
 Line weights are usually given in points, use `PtToEmu`/`EmuToPt` for those:
 
 ```ts
-import { PtToEmu, EmuToPt } from 'pptx-automizer';
+import { PtToEmu, EmuToPt } from 'pptx-templates';
 
 const weight = PtToEmu(1.5); // 19050
 const inPoints = EmuToPt(19050); // 1.5
@@ -1673,7 +1885,7 @@ const inPoints = EmuToPt(19050); // 1.5
 `ModifyHelper` (also available through the `modify` namespace) offers low-level callbacks that are handy for debugging or custom XML tweaks:
 
 ```ts
-import { modify } from 'pptx-automizer';
+import { modify } from 'pptx-templates';
 
 slide.modifyElement('MyShape', [
   // print the element's XML to the console
@@ -1692,7 +1904,7 @@ For advanced scenarios, you can inspect slide XML and relationships. These are c
 Import them from the package root:
 
 ```ts
-import { XmlSlideHelper, XmlRelationshipHelper } from 'pptx-automizer';
+import { XmlSlideHelper, XmlRelationshipHelper } from 'pptx-templates';
 ```
 
 Examples:
@@ -1704,9 +1916,9 @@ Examples:
 
 See tests for practical usage:
 
-- [Find all text elements on a slide](https://github.com/singerla/pptx-automizer/blob/main/__tests__/get-all-text-element-ids.test.ts)
-- [Read shape/group info](https://github.com/singerla/pptx-automizer/blob/main/__tests__/read-shape-info.test.ts)
-- [Read group info](https://github.com/singerla/pptx-automizer/blob/main/__tests__/read-group-info.test.ts)
+- [Find all text elements on a slide](https://github.com/DaBorsten/pptx-templates/blob/main/__tests__/get-all-text-element-ids.test.ts)
+- [Read shape/group info](https://github.com/DaBorsten/pptx-templates/blob/main/__tests__/read-shape-info.test.ts)
+- [Read group info](https://github.com/DaBorsten/pptx-templates/blob/main/__tests__/read-group-info.test.ts)
 
 ### Writing raw XML callbacks
 
@@ -1716,7 +1928,7 @@ custom geometry, `a:effectLst`, …). Any callback you pass to
 `<p:pic>` or `<p:graphicFrame>` node — so you can edit it directly:
 
 ```ts
-import { XmlElement } from 'pptx-automizer';
+import { XmlElement } from 'pptx-templates';
 
 slide.modifyElement('MyBox', (element: XmlElement) => {
   // ...manipulate the DOM node...
@@ -1745,14 +1957,14 @@ Rules for hand-written callbacks:
 5. **A throwing callback rejects `write()`** with a `CallbackError` naming the
    slide and element — unless `continueOnError: true` is set, which logs a
    warning and skips the modification instead (see
-   [deferred execution](https://singerla.github.io/pptx-automizer/concepts.md#deferred-execution)).
+   [deferred execution](https://daborsten.github.io/pptx-templates/concepts.md#deferred-execution)).
 6. Use `XmlHelper` (exported) for common DOM chores: `XmlHelper.remove(node)`,
    `insertAfter(new, ref)`, `getClosestParent('p:sp', node)`,
    `appendClone(node, parent)`, `dump(node)`.
 
 If a raw callback you wrote turns out to be generally useful, it is a good
 candidate for a new `modify.*` helper — see
-[AGENTS.md](https://github.com/singerla/pptx-automizer/blob/main/AGENTS.md) in
+[AGENTS.md](https://github.com/DaBorsten/pptx-templates/blob/main/AGENTS.md) in
 the repository.
 
 #### Worked example: shape outline (weight + color)
@@ -1762,7 +1974,7 @@ the repository.
 > it shows the general technique on a realistic property.
 
 ```ts
-import Automizer, { XmlElement } from 'pptx-automizer';
+import Automizer, { XmlElement } from 'pptx-templates';
 
 // p:spPr children that must stay AFTER a:ln
 const AFTER_LN = ['a:effectLst', 'a:effectDag', 'a:scene3d', 'a:sp3d', 'a:extLst'];
@@ -1827,11 +2039,11 @@ OOXML uses no single unit. When writing raw XML:
 | Font size (`a:rPr/@sz`, `TextStyle.size`) | 1/100 pt | 18pt = 1800 |
 | Percentages (`a:alpha/@val`, `a:lumMod`, …) | 1/1000 % | 50% = 50000 |
 | Colors (`a:srgbClr/@val`) | 6-digit hex | `'FF0000'`, never `'#FF0000'` |
-| PptxGenJS `slide.generate(...)` | inches | (different world — see [Generate shapes](https://singerla.github.io/pptx-automizer/generation.md)) |
+| PptxGenJS `slide.generate(...)` | inches | (different world — see [Generate shapes](https://daborsten.github.io/pptx-templates/generation.md)) |
 
 ## Output
 
-Calling an output method executes the whole queued modification chain (see [deferred execution](https://singerla.github.io/pptx-automizer/concepts.md#deferred-execution)) and produces the final archive. Always `await` the output call — nothing happens without it, and one output call per Automizer instance.
+Calling an output method executes the whole queued modification chain (see [deferred execution](https://daborsten.github.io/pptx-templates/concepts.md#deferred-execution)) and produces the final archive. Always `await` the output call — nothing happens without it, and one output call per Automizer instance.
 
 ### write, stream, getJSZip
 
@@ -1865,7 +2077,7 @@ By default, a throwing modification callback or an unresolvable element selector
 When creating large presentations, you might want to have some information about the current status. Use a custom status tracker:
 
 ```ts
-import Automizer, { StatusTracker } from 'pptx-automizer';
+import Automizer, { StatusTracker } from 'pptx-templates';
 
 // If you want to track the steps of creation process,
 // you can use a custom callback:
@@ -1901,7 +2113,7 @@ const automizer = new Automizer({
 });
 ```
 
-If an output file triggers PowerPoint's repair prompt, retry with `cleanup: false` and `cleanupPlaceholders: false` first — see [Troubleshooting](https://singerla.github.io/pptx-automizer/troubleshooting.md).
+If an output file triggers PowerPoint's repair prompt, retry with `cleanup: false` and `cleanupPlaceholders: false` first — see [Troubleshooting](https://daborsten.github.io/pptx-templates/troubleshooting.md).
 
 ## Requirements and Limitations
 
@@ -1909,23 +2121,23 @@ This generator can only be used on the server-side and requires a [Node.js](http
 
 ### Shape Types
 
-At the moment, you might encounter difficulties with special shape types that require additional relations (e.g., hyperlinks, video and audio may not work correctly). However, most shape types, including connection shapes, tables, and charts, are already supported. If you encounter any issues, please feel free to [report any issue](https://github.com/singerla/pptx-automizer/issues/new).
+At the moment, you might encounter difficulties with special shape types that require additional relations (e.g., hyperlinks, video and audio may not work correctly). However, most shape types, including connection shapes, tables, and charts, are already supported. If you encounter any issues, please feel free to [report any issue](https://github.com/DaBorsten/pptx-templates/issues/new).
 
 ### Chart Types
 
-Extended chart types, like waterfall or map charts, are basically supported. You might need additional modifiers to handle extended properties, which are not implemented yet. Please help to improve `pptx-automizer` and [report](https://github.com/singerla/pptx-automizer/issues/new) issues regarding extended charts.
+Extended chart types, like waterfall or map charts, are basically supported. You might need additional modifiers to handle extended properties, which are not implemented yet. Please help to improve `pptx-templates` and [report](https://github.com/DaBorsten/pptx-templates/issues/new) issues regarding extended charts.
 
 ### Animations
 
-Animations are currently out of scope of this library. You might get errors on opening an output .pptx when there are added or removed shapes. This is because `pptx-automizer` doesn't synchronize `id`-attributes of animations with the existing shapes on a slide.
+Animations are currently out of scope of this library. You might get errors on opening an output .pptx when there are added or removed shapes. This is because `pptx-templates` doesn't synchronize `id`-attributes of animations with the existing shapes on a slide.
 
 ### Slide Masters and Layouts
 
-Slide masters and their layouts can be imported, but individual slide layouts cannot be added, modified or removed directly, and layouts must not carry complex content like charts and images. See [Slide Masters and Layouts](https://singerla.github.io/pptx-automizer/masters-layouts.md) for details and workarounds.
+Slide masters and their layouts can be imported, but individual slide layouts cannot be added, modified or removed directly, and layouts must not carry complex content like charts and images. See [Slide Masters and Layouts](https://daborsten.github.io/pptx-templates/masters-layouts.md) for details and workarounds.
 
 ### Direct manipulation of elements
 
-It is also important to know that `pptx-automizer` is currently limited to _adding_ things to the output presentation. If you require the ability to, for instance, modify a specific element on a slide within an existing presentation and leave the rest untouched, you will need to include all the other slides in the process. Find some workarounds in [Slide Management](https://singerla.github.io/pptx-automizer/slide-management.md#loop-through-the-slides-of-a-presentation).
+It is also important to know that `pptx-templates` is currently limited to _adding_ things to the output presentation. If you require the ability to, for instance, modify a specific element on a slide within an existing presentation and leave the rest untouched, you will need to include all the other slides in the process. Find some workarounds in [Slide Management](https://daborsten.github.io/pptx-templates/slide-management.md#loop-through-the-slides-of-a-presentation).
 
 ### PowerPoint version
 
@@ -1935,8 +2147,8 @@ All testing focuses on PowerPoint 2019 .pptx file format.
 
 If you encounter problems when opening a `.pptx`-file modified by this library, you might worry about PowerPoint not giving any details about the error. It can be hard to find the cause, but there are some things you can check:
 
-- **Broken relation**: There are still unsupported shape types and `pptx-automizer` will not copy required relations of those. You can inflate `.pptx` output and check `ppt/slides/_rels/slide[#].xml.rels` files to find possible missing files.
-- **Unsupported media**: You can also take a look at the `ppt/media`-directory of an inflated `.pptx`-file. If you discover any unusual file formats, remove or replace the files by one of the [known types](https://github.com/singerla/pptx-automizer/blob/main/src/enums/content-type-map.ts).
+- **Broken relation**: There are still unsupported shape types and `pptx-templates` will not copy required relations of those. You can inflate `.pptx` output and check `ppt/slides/_rels/slide[#].xml.rels` files to find possible missing files.
+- **Unsupported media**: You can also take a look at the `ppt/media`-directory of an inflated `.pptx`-file. If you discover any unusual file formats, remove or replace the files by one of the [known types](https://github.com/DaBorsten/pptx-templates/blob/main/src/enums/content-type-map.ts).
 - **Broken animation**: Pay attention to modified/removed shapes which are part of an animation. In case of doubt, (temporarily) remove all animations from your template. (see [#78](https://github.com/singerla/pptx-automizer/issues/78))
 - **Proprietary/Binary contents** (e.g. ThinkCell): Walk through all slides, slideMasters and slideLayouts and seek for hidden Objects. Hit `ALT+F10` to toggle the sidebar.
 - **Chart datasheet won't open** If you encounter an error message on opening a chart's datasheet, please make sure that the data table (blue bordered rectangle in worksheet view) of your template starts at cell A:1. If not, open worksheet in Excel mode and edit the table size in the table draft tab.
@@ -1949,9 +2161,9 @@ If the output opens with a PowerPoint repair prompt and the checks above don't p
 2. Remove exotic elements (animations, embedded videos, ThinkCell remnants) from the template.
 3. Isolate the failing slide by bisecting your `addSlide` calls — comment out half of them, re-run, and narrow down until the offending slide (or modification) is found.
 
-Another powerful check: run the repo's [OOXML schema validator](https://singerla.github.io/pptx-automizer/testing.md#ooxml-schema-validation-validatepptx) (`yarn validate:pptx`) on your output — it usually names the exact part and element PowerPoint chokes on.
+Another powerful check: run the repo's [OOXML schema validator](https://daborsten.github.io/pptx-templates/testing.md#ooxml-schema-validation-validatepptx) (`yarn validate:pptx`) on your output — it usually names the exact part and element PowerPoint chokes on.
 
-If none of these could help, please don't hesitate to [talk about it](https://github.com/singerla/pptx-automizer/issues/new).
+If none of these could help, please don't hesitate to [talk about it](https://github.com/DaBorsten/pptx-templates/issues/new).
 
 ### Testing
 
@@ -1962,7 +2174,7 @@ yarn test
 yarn test-coverage
 ```
 
-See [Testing and Validation Tools](https://singerla.github.io/pptx-automizer/testing.md) for the full test system — archive invariants, the docs-examples compile gate, schema validation and visual regression.
+See [Testing and Validation Tools](https://daborsten.github.io/pptx-templates/testing.md) for the full test system — archive invariants, the docs-examples compile gate, schema validation and visual regression.
 
 ## Rules for the AI assistant
 
@@ -1998,7 +2210,7 @@ See [Testing and Validation Tools](https://singerla.github.io/pptx-automizer/tes
 ## Minimal complete example
 
 ```ts
-import Automizer, { modify } from 'pptx-automizer';
+import Automizer, { modify } from 'pptx-templates';
 
 const automizer = new Automizer({
   templateDir: `${__dirname}/templates`,
@@ -2035,7 +2247,7 @@ console.log(`Done: ${summary.slides} slides in ${summary.file}`);
 
 More examples: the `__tests__/` directory of the repo covers nearly every
 feature (94 runnable scenarios). Full documentation:
-https://singerla.github.io/pptx-automizer/ — every page is also served as
+https://daborsten.github.io/pptx-templates/ — every page is also served as
 Markdown at its URL plus `.md`, indexed in
-https://singerla.github.io/pptx-automizer/llms.txt.
-Repo: https://github.com/singerla/pptx-automizer
+https://daborsten.github.io/pptx-templates/llms.txt.
+Repo: https://github.com/DaBorsten/pptx-templates

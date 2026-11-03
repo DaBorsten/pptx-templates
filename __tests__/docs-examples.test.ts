@@ -5,7 +5,7 @@
  *
  * Each block is wrapped in a synthetic module (`export {};` prefix) and the
  * whole batch is checked by one TS program, so the src type graph is only
- * built once. `import ... from 'pptx-automizer'` resolves to src/index.ts
+ * built once. `import ... from 'pptx-templates'` resolves to src/index.ts
  * via a paths mapping.
  */
 import * as fs from 'fs';
@@ -103,9 +103,9 @@ const compilerOptions: ts.CompilerOptions = {
   types: ['node'],
   baseUrl: repoRoot,
   paths: {
-    'pptx-automizer': ['src/index.ts'],
+    'pptx-templates': ['src/index.ts'],
     // deep imports must use the published layout (only dist/ ships to npm)
-    'pptx-automizer/dist/*': ['src/*'],
+    'pptx-templates/dist/*': ['src/*'],
   },
 };
 

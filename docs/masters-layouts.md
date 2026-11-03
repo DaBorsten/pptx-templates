@@ -3,7 +3,7 @@ title: Slide Masters and Layouts
 description: Import slide masters with their layouts, modify master shapes, and switch layouts on output slides.
 ---
 
-`pptx-automizer` supports importing slide masters and their associated slide layouts into the output presentation, modifying the masters and layouts that are already in the root template in place, and removing a master together with its layouts. Individual layouts cannot be imported on their own — a layout always comes with its master. A modification on a slideMaster appears on all related slideLayouts.
+`pptx-templates` supports importing slide masters and their associated slide layouts into the output presentation, modifying the masters and layouts that are already in the root template in place, and removing a master together with its layouts. Individual layouts cannot be imported on their own — a layout always comes with its master. A modification on a slideMaster appears on all related slideLayouts.
 
 Please be aware that importing slide layouts containing complex content, such as charts and images, is currently not supported. For instance, if a slide layout includes an icon that is not present on the slide master, this icon will break when the slide master is auto-imported into an output presentation. To avoid this issue, ensure that all images and charts are placed exclusively on a slide master and not on a slide layout.
 
@@ -182,7 +182,7 @@ Please notice: If your root template and your imported slides have an equal stru
 If you have trouble with messed up slideMasters, and if you don't worry about the impact on performance, you can try and set `autoImportSlideMasters: true` to always import all required files:
 
 ```ts
-import Automizer from 'pptx-automizer';
+import Automizer from 'pptx-templates';
 
 const automizer = new Automizer({
   // ...
