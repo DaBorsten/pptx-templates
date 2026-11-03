@@ -11,8 +11,17 @@
  * from green pixels.
  */
 module.exports = {
-  preset: 'ts-jest',
   testEnvironment: 'node',
+  // pixelmatch >= 7 is ESM-only; Node < 24.9 cannot require() it from the
+  // CommonJS test files, so let ts-jest compile it (and only it) to CJS.
+  transform: {
+    '^.+\\.ts$': 'ts-jest',
+    '^.+/node_modules/pixelmatch/.+\\.js$': [
+      'ts-jest',
+      { tsconfig: { allowJs: true, module: 'commonjs', esModuleInterop: true }, diagnostics: false },
+    ],
+  },
+  transformIgnorePatterns: ['/node_modules/(?!pixelmatch/)'],
   testMatch: ['**/__tests__/visual/**/*.deck.ts'],
   globalSetup: '<rootDir>/__tests__/visual/helpers/global-setup.ts',
   globalTeardown: '<rootDir>/__tests__/visual/helpers/global-teardown.ts',
