@@ -26,7 +26,9 @@ git remote get-url upstream >/dev/null 2>&1 || git remote add upstream "$UPSTREA
 # Remember how conflicts were resolved, so a repeated conflict resolves itself.
 git config rerere.enabled true
 
-git fetch upstream
+# Upstream's tags (v0.0.2–v0.9.3) would collide with the fork's own versions.
+git config remote.upstream.tagOpt --no-tags
+git fetch --no-tags upstream
 git checkout "$BRANCH"
 
 if ! git merge --no-edit upstream/main; then

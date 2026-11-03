@@ -4,7 +4,7 @@
 #
 # Release: bump "version" in package.json on main, then
 #   git tag v0.1.0 && git push origin v0.1.0
-# (push the single tag, not --tags: the upstream v0.9.x tags would trigger too)
+# (upstream's tags are not fetched, see FORK.md "Releasing")
 name: Release
 
 on:

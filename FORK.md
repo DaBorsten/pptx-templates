@@ -79,5 +79,6 @@ of the fork extension then show it.
 trusted publishing (OIDC), no token. Bump `version` in `package.json` on
 `main`, then push a single tag: `git tag v0.1.1 && git push origin v0.1.1`.
 The workflow refuses tags whose commit is not on `main` or whose name does
-not match `package.json`. Don't use `git push --tags`: that would also push
-the upstream `v0.9.x` tags.
+not match `package.json`. Upstream tags are not fetched (`sync-upstream.sh`
+sets `tagOpt --no-tags`), because v0.1.0–v0.9.3 would collide with the
+fork's versions; the copies forked in were deleted on 2026-11-03.
