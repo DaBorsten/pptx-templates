@@ -1,6 +1,9 @@
-# Fork addition: publish pptx-templates to npm via trusted publishing (OIDC).
+# Fork addition: stage pptx-templates on npm via trusted publishing (OIDC).
 # No npm token is stored anywhere; npm exchanges the GitHub OIDC token for a
-# short-lived publish credential and attaches provenance automatically.
+# short-lived credential that may only run `npm stage publish`. The version
+# goes live only after a maintainer approves it with 2FA:
+#   npm stage list pptx-templates
+#   npm stage approve <stage-id>
 #
 # Release: bump "version" in package.json on main, then
 #   git tag v0.1.0 && git push origin v0.1.0
@@ -70,11 +73,17 @@ jobs:
         run: yarn build
 
       # npm, not yarn: Yarn 1 cannot publish via OIDC.
-      # Prerelease versions (1.2.3-beta.1) go to the "next" dist-tag.
-      # Skips a version that is already on npm (e.g. 0.1.0, published by hand
-      # because trusted publishing can only be configured for an existing
-      # package), so such a tag and a re-run stay green.
-      - name: Publish
+      # Prerelease versions (1.2.3-beta.1) go to the "next" dist-tag, all
+      # others to the default "latest". No explicit `--tag latest`: without
+      # it npm refuses a version lower than the current latest, which keeps a
+      # backport from moving latest backwards. The tag is fixed at staging
+      # time; to change it, `npm stage reject` the staged version.
+      # Skips a version that is already published (e.g. 0.1.0, published by
+      # hand because trusted publishing can only be configured for an
+      # existing package). A version that is staged but not yet approved is
+      # invisible to `npm view`, so re-running before approval fails: the
+      # version number is already taken by the staged package.
+      - name: Stage
         run: |
           version="${GITHUB_REF_NAME#v}"
           if npm view "pptx-templates@$version" version >/dev/null 2>&1; then
@@ -82,7 +91,8 @@ jobs:
             exit 0
           fi
           if [[ "$GITHUB_REF_NAME" == *-* ]]; then
-            npm publish --access public --tag next
+            npm stage publish --access public --tag next
           else
-            npm publish --access public
+            npm stage publish --access public
           fi
+          echo "::notice::pptx-templates@$version staged, approve with: npm stage list pptx-templates && npm stage approve <stage-id>"

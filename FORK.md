@@ -76,10 +76,22 @@ of the fork extension then show it.
 
 ## Releasing
 
-`.github/workflows/release.yml` (fork-only file) publishes to npm with
-trusted publishing (OIDC), no token. Bump `version` in `package.json` on
+`.github/workflows/release.yml` (fork-only file) stages the package on npm
+with trusted publishing (OIDC), no token. Bump `version` in `package.json` on
 `main`, then push a single tag: `git tag v0.1.1 && git push origin v0.1.1`.
 The workflow refuses tags whose commit is not on `main` or whose name does
-not match `package.json`. Upstream tags are not fetched (`sync-upstream.sh`
+not match `package.json`. It only runs `npm stage publish`; the trusted
+publisher on npmjs.com is set to staging only ("Allow npm publish" off). The
+version goes live after a maintainer approves it with 2FA:
+`npm stage list pptx-templates`, then `npm stage approve <stage-id>`
+(`npm stage download <stage-id>` to inspect the tarball first,
+`npm stage reject <stage-id>` to discard it).
+
+Dist-tags: a version with a prerelease suffix (`v0.2.0-beta.1`) is staged
+under `next`, every other version under `latest`. The tag is fixed when the
+version is staged. A patch for an older line (say `v0.1.3` after `v0.2.0` is
+out) fails in the workflow, because npm refuses to put a lower version on
+`latest`; stage such a version by hand with its own tag
+(`npm stage publish --tag v0.1-maintenance`), or skip backports. Upstream tags are not fetched (`sync-upstream.sh`
 sets `tagOpt --no-tags`), because v0.1.0–v0.9.3 would collide with the
 fork's versions; the copies forked in were deleted on 2026-11-03.
