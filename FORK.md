@@ -47,6 +47,7 @@ an added line, and no upstream line is changed:
 | File | Added |
 |---|---|
 | `src/index.ts` | 3 lines at the very top (`import { extensionModifiers } …`, `export * from './extensions'`), 1 line at the start of `export const modify = {` (`...extensionModifiers,`) |
+| `src/helper/text-replace-helper.ts` | 1 import (`mergeRunsSplitByTags`), 1 call at the start of `isolateTaggedNodes()`; moves tags split by spell check into one run, see `src/extensions/run-merge/` |
 | `website/sidebars.ts` | `'template-logic',` before `'generation'` |
 | `tools/ai-instructor/template.md` | `<!-- include: docs/template-logic.md -->` after the text include |
 | `AGENTS.md` | 1 line pointing agents to this file |

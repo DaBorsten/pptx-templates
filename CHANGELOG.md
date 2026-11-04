@@ -4,7 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 semver, with the pre-1.0 convention that **breaking changes bump the minor**.
 
-## [Unreleased]
+## [0.1.1] - 2026-11-04
+
+### Fixed
+
+- `modify.replaceText` now finds `{{tags}}` that PowerPoint split over several
+  runs (spell check `err="1"`, edit history). Before the search, a split tag
+  is moved into the run it starts in; text before and after the tag keeps its
+  own run and formatting (`src/extensions/run-merge/`).
 
 ## [0.1.0]
 

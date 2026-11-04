@@ -8,6 +8,7 @@ import {
 } from '../types/modify-types';
 import ModifyTextHelper from './modify-text-helper';
 import { XmlElement } from '../types/xml-types';
+import { mergeRunsSplitByTags } from '../extensions/run-merge';
 
 type Expressions = {
   openingTag: string;
@@ -43,6 +44,11 @@ export default class TextReplaceHelper {
   }
 
   isolateTaggedNodes(): this {
+    mergeRunsSplitByTags(
+      this.element,
+      this.options.openingTag,
+      this.options.closingTag,
+    );
     const paragraphs = this.element.getElementsByTagName('a:p');
     const pattern = this.getRegExp();
 
