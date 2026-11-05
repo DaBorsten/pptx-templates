@@ -57,7 +57,7 @@ const getMediaInfo = async (file: string) => {
       images.push({
         slide,
         target,
-        exists: archive.file(target.replace('../', 'ppt/')) !== null,
+        exists: archive.file(target.replace(/^\.\.\//, 'ppt/')) !== null,
       });
     }
   }

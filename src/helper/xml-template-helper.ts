@@ -196,7 +196,7 @@ export class XmlTemplateHelper {
 
         if (target) {
           // Get the layout XML
-          const layoutPath = 'ppt/' + target.replace('../', '');
+          const layoutPath = 'ppt/' + target.replace(/^\.\.\//, '');
           const layoutXml = await XmlHelper.getXmlFromArchive(
             archive,
             layoutPath,
@@ -272,7 +272,7 @@ export class XmlTemplateHelper {
     archive: IArchive,
     slideNoteRels: Target[],
   ): Promise<string> {
-    const notesFile = slideNoteRels[0].file.replace('../', '');
+    const notesFile = slideNoteRels[0].file.replace(/^\.\.\//, '');
     const notesXml = await XmlHelper.getXmlFromArchive(
       archive,
       'ppt/' + notesFile,

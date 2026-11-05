@@ -159,7 +159,7 @@ export class XmlRelationshipHelper {
     for (const xmlTarget of this.xmlTargets) {
       const targetFile = xmlTarget.getAttribute('Target');
       const targetMode = xmlTarget.getAttribute('TargetMode');
-      const targetPath = targetFile.replace('../', 'ppt/');
+      const targetPath = targetFile.replace(/^\.\.\//, 'ppt/');
 
       if (
         targetMode !== 'External' &&
@@ -236,7 +236,7 @@ export class XmlRelationshipHelper {
     const filenameExt = last(filename.split('.'));
     const filenameMatch = filename
       .replace('.' + filenameExt, '')
-      .match(/^(.+?)(\d+)*$/);
+      .match(/^(.+?)(\d*)$/);
 
     const number =
       filenameMatch && filenameMatch[2] ? Number(filenameMatch[2]) : 0;

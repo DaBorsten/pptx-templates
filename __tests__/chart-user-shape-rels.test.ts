@@ -57,7 +57,7 @@ const expectDrawingImage = async (
   const zip = await JSZip.loadAsync(
     fs.readFileSync(`${outputDir}/${outputFile}`),
   );
-  const mediaPath = target.replace('../', 'ppt/');
+  const mediaPath = target.replace(/^\.\.\//, 'ppt/');
   expect(zip.file(mediaPath)).not.toBeNull();
 
   const contentTypes = await expectXml(outputFile, '[Content_Types].xml');
