@@ -6,6 +6,8 @@ semver, with the pre-1.0 convention that **breaking changes bump the minor**.
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-11-05
+
 ### Added
 
 - `modify.setGeometry(shape, adjustments?)` crops a picture or shape to any
@@ -63,6 +65,7 @@ for that history.
   into one `.png` part. The fallback now gets the same placeholder PNG that
   pptxgenjs 3.12 wrote.
 
-[Unreleased]: https://github.com/DaBorsten/pptx-templates/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/DaBorsten/pptx-templates/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/DaBorsten/pptx-templates/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/DaBorsten/pptx-templates/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/DaBorsten/pptx-templates/releases/tag/v0.1.0
