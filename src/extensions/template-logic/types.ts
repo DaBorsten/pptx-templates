@@ -1,3 +1,10 @@
+import {
+  CornerRadius,
+  ImageBorder,
+  ShapeAdjustments,
+  ShapePreset,
+} from '../shape-geometry/types';
+
 /** Values (and functions) the expressions in template tags can reference. */
 export type TemplateData = Record<string, unknown>;
 
@@ -62,6 +69,23 @@ export type TemplateImage = {
   alt?: string;
   /** Rotation in degrees, clockwise. */
   rotation?: number;
+  /**
+   * Shape the picture is cropped to ("Crop to Shape"): any DrawingML preset
+   * geometry, e.g. 'roundRect', 'ellipse', 'heart'. Defaults to 'rect', or to
+   * 'roundRect' when `cornerRadius` is given.
+   */
+  shape?: ShapePreset;
+  /**
+   * Corner radius on the shorter side of the picture: a number in cm, or a
+   * string like '10%', '12px', '4pt'. '50%' is the maximum. Only for the
+   * rounded shapes ('roundRect', 'round1Rect', 'round2SameRect',
+   * 'round2DiagRect', 'snipRoundRect').
+   */
+  cornerRadius?: CornerRadius;
+  /** Raw adjust values of the shape, e.g. `{ adj: 25000 }`. Win over `cornerRadius`. */
+  shapeAdjustments?: ShapeAdjustments;
+  /** Border along the outline of the shape: hex `color`, `width` in pt. */
+  border?: ImageBorder;
 };
 
 export type TemplateCommand = {

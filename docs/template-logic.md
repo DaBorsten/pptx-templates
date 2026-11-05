@@ -106,6 +106,7 @@ pres.addSlide('TextReplace.pptx', 1, (slide) => {
 ```text
 {{IMAGE ({ data: logo, extension: '.png', width: 4, alt: 'Logo' })}}
 {{FOR p IN photos}}{{IMAGE ({ data: p })}}{{END-FOR}}
+{{IMAGE ({ data: logo, extension: '.png', shape: 'ellipse', border: { color: '#1f4e79', width: 2 } })}}
 ```
 
 | Property | Effect |
@@ -115,6 +116,10 @@ pres.addSlide('TextReplace.pptx', 1, (slide) => {
 | `width`, `height` | Size in cm. With only one of them, the other keeps the aspect ratio. Without both, the picture fits into the shape, keeping its aspect ratio |
 | `alt` | Alternative text |
 | `rotation` | Rotation in degrees, clockwise |
+| `shape` | Shape the picture is cropped to: any DrawingML preset, e.g. `'ellipse'`, `'heart'`, `'star5'` (see [Shape Geometry](./shape-geometry.md)). Default `'rect'`, or `'roundRect'` with `cornerRadius` |
+| `cornerRadius` | Corner radius on the shorter side: a number in cm, or `'10%'`, `'12px'`, `'4pt'`. At most `'50%'`. Only for `roundRect`, `round1Rect`, `round2SameRect`, `round2DiagRect`, `snipRoundRect` |
+| `shapeAdjustments` | Raw adjust values of the shape, e.g. `{ adj: 25000 }`. Win over `cornerRadius` |
+| `border` | `{ color, width }`: hex color (`'#1f4e79'`) and width in pt |
 
 PPTX text cannot contain pictures, so the picture is placed **at the shape
 that holds the tag**, centered in its frame. Several pictures from one shape,

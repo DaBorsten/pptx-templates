@@ -45,6 +45,8 @@ PptxGenJS bridge (see below) when there is no reasonable template shape.
 
 <!-- include: docs/template-logic.md -->
 
+<!-- include: docs/shape-geometry.md -->
+
 <!-- include: docs/tables.md -->
 
 <!-- include: docs/charts.md -->

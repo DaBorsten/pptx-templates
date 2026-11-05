@@ -23,7 +23,7 @@
     "docs:start": "yarn --cwd website start",
     "docs:build": "yarn --cwd website build",
     "docs:serve": "yarn --cwd website serve",
-    "validate:pptx": "docker build -q -t pptx-validator tools/validate-pptx && docker run --rm -v \"$PWD:/repo:ro\" pptx-validator --allowlist /repo/tools/validate-pptx/allowlist.json /repo/__tests__/pptx-templates /repo/__tests__/pptx-output",
+    "validate:pptx": "node tools/fork/validate-pptx.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "prettier": "prettier --config .prettierrc 'src/**/*.ts' --write"

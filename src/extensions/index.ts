@@ -6,10 +6,21 @@
  * See FORK.md.
  */
 import { renderTemplate } from './template-logic';
+import { setCornerRadius, setGeometry } from './shape-geometry';
 
 /** Spread into the public `modify` namespace in src/index.ts. */
 export const extensionModifiers = {
   renderTemplate,
+  setGeometry,
+  setCornerRadius,
 };
 
 export * from './template-logic';
+export {
+  ShapePresets,
+  ShapePreset,
+  RoundedShapePreset,
+  CornerRadius,
+  ShapeAdjustments,
+  ImageBorder,
+} from './shape-geometry';

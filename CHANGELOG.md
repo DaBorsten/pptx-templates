@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 semver, with the pre-1.0 convention that **breaking changes bump the minor**.
 
+## [Unreleased]
+
+### Added
+
+- `modify.setGeometry(shape, adjustments?)` crops a picture or shape to any
+  DrawingML preset geometry (*Crop to Shape*), e.g. `'ellipse'`, `'heart'`.
+- `modify.setCornerRadius(radius, shape?)` rounds corners; the radius is a
+  number in cm or a string in `%`, `px`, `pt`, `cm` or `mm`.
+- `{{IMAGE}}` takes `shape`, `cornerRadius`, `shapeAdjustments` and `border`,
+  as in docx-templates (`src/extensions/shape-geometry/`).
+
 ## [0.1.1] - 2026-11-04
 
 ### Fixed
@@ -52,5 +63,6 @@ for that history.
   into one `.png` part. The fallback now gets the same placeholder PNG that
   pptxgenjs 3.12 wrote.
 
-[Unreleased]: https://github.com/DaBorsten/pptx-templates/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/DaBorsten/pptx-templates/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/DaBorsten/pptx-templates/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/DaBorsten/pptx-templates/releases/tag/v0.1.0

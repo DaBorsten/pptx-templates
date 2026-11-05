@@ -6,6 +6,8 @@ import { XmlRelationshipHelper } from '../../helper/xml-relationship-helper';
 import { PptPaths } from '../../helper/ppt-paths';
 import { imageDimensions } from '../../helper/image-dimensions';
 import { ContentTypeExtension } from '../../enums/content-type-map';
+import ModifyShapeHelper from '../../helper/modify-shape-helper';
+import { applyGeometry, resolveGeometry } from '../shape-geometry';
 import { TemplateImage } from './types';
 
 /**
@@ -26,6 +28,7 @@ const MIME_EXTENSIONS: Record<string, string> = {
 const SUPPORTED = ['png', 'jpg', 'jpeg', 'gif'];
 
 const EMU_PER_CM = 360000;
+const EMU_PER_PT = 12700;
 
 export type ImageTarget = {
   archive: IArchive;
@@ -75,7 +78,44 @@ export const loadImage = (value: unknown): LoadedImage => {
       `IMAGE: unsupported extension "${extension ?? ''}" (use ${SUPPORTED.join(', ')})`,
     );
   }
+  if (spec.border) {
+    const { color, width } = spec.border;
+    if (typeof color !== 'string' || !/^#?[0-9a-f]{6}$/i.test(color)) {
+      throw new Error(
+        `IMAGE: invalid border color ${String(color)} (a hex RGB color, e.g. '#ff0000')`,
+      );
+    }
+    if (!Number.isFinite(width) || width < 0) {
+      throw new Error(`IMAGE: invalid border width ${String(width)} (in pt)`);
+    }
+  }
+  // Fails early on a bad shape or radius; the real size comes with the slot.
+  geometryFor(spec, { cx: 1, cy: 1 });
   return { spec, content, extension };
+};
+
+const geometryFor = (spec: TemplateImage, size: { cx: number; cy: number }) => {
+  try {
+    return resolveGeometry(spec, size);
+  } catch (error) {
+    throw new Error(`IMAGE: ${(error as Error).message}`, { cause: error });
+  }
+};
+
+/** shape/cornerRadius/shapeAdjustments and border of an IMAGE picture. */
+const styleShape = (picture: XmlElement, image: LoadedImage, box: Frame) => {
+  const { spec } = image;
+  const spPr = XmlHelper.getFirstDirectChild(picture, ['p:spPr']);
+  applyGeometry(spPr, geometryFor(spec, box));
+  if (spec.border) {
+    ModifyShapeHelper.setOutline({
+      weight: Math.round(spec.border.width * EMU_PER_PT),
+      color: {
+        type: 'srgbClr',
+        value: spec.border.color.replace(/^#/, '').toUpperCase(),
+      },
+    })(picture);
+  }
 };
 
 const childElement = (parent: XmlElement, tagName: string) => {
@@ -218,7 +258,6 @@ const createPicture = (
         el('a:off', { x: Math.round(box.x), y: Math.round(box.y) }),
         el('a:ext', { cx: Math.round(box.cx), cy: Math.round(box.cy) }),
       ),
-      el('a:prstGeom', { prst: 'rect' }, el('a:avLst')),
     ),
   );
 };
@@ -260,6 +299,7 @@ export const placeImages = async (
       box,
       nextShapeId(target, shape),
     );
+    styleShape(picture, images[i], box);
     shape.parentNode.insertBefore(picture, anchor);
     anchor = picture.nextSibling;
   }

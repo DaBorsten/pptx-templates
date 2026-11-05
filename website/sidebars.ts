@@ -17,6 +17,7 @@ const sidebars: SidebarsConfig = {
       items: ['text', 'tables', 'charts', 'images', 'masters-layouts'],
     },
     'template-logic', // fork extension (see FORK.md)
+    'shape-geometry', // fork extension (see FORK.md)
     'generation',
     'hyperlinks',
     'slide-management',
