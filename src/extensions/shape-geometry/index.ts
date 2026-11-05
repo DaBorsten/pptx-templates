@@ -112,7 +112,9 @@ export const cornerRadiusFraction = (
   if (typeof radius === 'number') {
     absolute = radius * EMU_PER_UNIT.cm;
   } else if (typeof radius === 'string') {
-    const match = /^\s*(\d+(?:\.\d+)?)\s*(%|cm|mm|pt|px)?\s*$/i.exec(radius);
+    const match = /^(\d+(?:\.\d+)?)\s*(%|cm|mm|pt|px)?$/i.exec(
+      radius.trim(),
+    );
     if (match) {
       const value = Number(match[1]);
       const unit = (match[2] ?? 'cm').toLowerCase();

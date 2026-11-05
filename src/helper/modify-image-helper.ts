@@ -44,7 +44,7 @@ export default class ModifyImageHelper {
     return async (element: XmlElement, arg1: XmlElement): Promise<void> => {
       const newTarget = '../media/' + slugify(filename);
       const originalTarget = arg1.getAttribute('Target');
-      const originalTargetPath = originalTarget.replace('../', 'ppt/');
+      const originalTargetPath = originalTarget.replace(/^\.\.\//, 'ppt/');
       const originalImageDimensions = { width: 100, height: 100 };
       const newImageDimensions = { width: 100, height: 100 };
 

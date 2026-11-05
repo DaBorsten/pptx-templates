@@ -6,6 +6,13 @@ semver, with the pre-1.0 convention that **breaking changes bump the minor**.
 
 ## [Unreleased]
 
+### Security
+
+- Fixed CodeQL findings: a relationship filename like `a000…0` no longer
+  triggers exponential regex backtracking, and the corner-radius parser no
+  longer runs in polynomial time on long whitespace input. Relative targets
+  (`../media/…`) are resolved with an anchored pattern.
+
 ## [0.1.2] - 2026-11-05
 
 ### Added

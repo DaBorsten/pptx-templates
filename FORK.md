@@ -67,6 +67,7 @@ merge:
 | `tsconfig.json` | `strict: false` explicit, `moduleResolution: bundler`, `rootDir: src`, `lib: es2022`, `baseUrl` removed | TypeScript 6 defaults (`strict` on, `rootDir`) and deprecations (`node10`, `baseUrl`); `es2022` for `Error` `cause` |
 | `src/classes/has-shapes.ts`, `src/classes/template.ts`, `src/helper/xml-slide-helper.ts`, `src/helper/xml-template-helper.ts` | rethrown errors pass `{ cause: error }` | ESLint 10 `preserve-caught-error` |
 | `src/helper/archive/archive-jszip.ts` | `let xmlString: string;` without the unused `''` | ESLint 10 `no-useless-assignment` |
+| `src/helper/xml-relationship-helper.ts`, `src/helper/xml-template-helper.ts`, `src/helper/modify-image-helper.ts` | `.replace('../', …)` → `.replace(/^\.\.\//, …)`; filename regex `/^(.+?)(\d+)*$/` → `/^(.+?)(\d*)$/` | CodeQL `js/incomplete-sanitization` and `js/redos`; same results for every real target |
 | `AGENTS.md` | single-test command `yarn test <file>` | plain `npx jest` lacks the flag |
 | `.github/workflows/ci.yml` | `26.x` added to the test matrix | the fork supports Node 20 through 26 |
 | `CHANGELOG.md`, `ROADMAP.md` | replaced: the changelog starts at 0.1.0, the roadmap is empty | the fork has its own versions; `sync-upstream.sh` keeps the fork's copies on a conflict |
