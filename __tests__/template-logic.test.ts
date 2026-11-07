@@ -2,6 +2,8 @@ import Automizer, {
   listTemplateCommands,
   modify,
   RenderTemplateOptions,
+  ShapeModificationCallback,
+  TableData,
   TemplateData,
   XmlDocument,
   XmlElement,
@@ -90,7 +92,7 @@ test('render template logic in text shapes and tables', async () => {
           [
             '{{FOR x IN empty}}never{{END-FOR}}Status: {{IF user.orders > 5}}gold{{ELSE-IF user.orders > 2}}silver{{ELSE}}none{{END-IF}}',
           ],
-          ['{{IF user.name == “Ada”}}quoted ok{{END-IF}}'],
+          ["{{IF user.name == 'Ada'}}quoted ok{{END-IF}}"],
           ['{{= note}}'],
         ]),
         modify.renderTemplate(data),
@@ -267,11 +269,165 @@ const renderShape = async (
   return { slide, texts: paragraphTexts(shapeXml(slide.raw(), 'setText')) };
 };
 
+test('typographic quotes need fixSmartQuotes, as in docx-templates', async () => {
+  const paragraphs = [
+    ['{{IF user.name == ’Ada’}}yes{{END-IF}} {{“a” + ‚b‘ + „c“}}'],
+    ['{{ALIAS greet INS ‘Hi ’ + user.name}}{{*greet}}'],
+  ];
+  await expect(
+    renderShape('template-logic-smart-quotes-off.test.pptx', paragraphs, data),
+  ).rejects.toThrow(/Unexpected character "’"/);
+
+  const { texts } = await renderShape(
+    'template-logic-smart-quotes.test.pptx',
+    paragraphs,
+    data,
+    { fixSmartQuotes: true },
+  );
+  expect(texts).toEqual(['yes abc', 'Hi Ada']);
+});
+
+test('setTable markers like {{each:row}} stay as text', async () => {
+  const { texts } = await renderShape(
+    'template-logic-table-marker.test.pptx',
+    [['{{each:row}}'], ['{{ each:subSub2 }} {{user.name}}']],
+    data,
+  );
+  expect(texts).toEqual(['{{each:row}}', '{{ each:subSub2 }} Ada']);
+});
+
+describe('nested tables: setTable markers next to template tags', () => {
+  const tableData: TableData = {
+    body: [
+      { values: ['top left', 123, 345, 'subsub3-1', 'subsub3-2', 'Last'] },
+      { values: [undefined, 't1', 't2', 't3', 't3', ''] },
+      { values: ['label 0', 1, 2, 3, 3, 'l0'] },
+      { values: ['label 1', 123, 345, 4563, 4671, 'l1'] },
+      { values: ['label 2', 123, 345, 4562, 4672] },
+      { values: ['label 3', 123, 345, 4561, 4673, 'l3'] },
+      { values: [undefined, 'Foo', 'ter', 4564, 4674, ''] },
+    ],
+  };
+  const setTable = modify.setTable(tableData, {
+    expand: [
+      { mode: 'row', tag: '{{each:row}}', count: 3 },
+      { mode: 'column', tag: '{{each:subSub3}}', count: 1 },
+    ],
+  });
+  const render = modify.renderTemplate(data);
+
+  /** NestedTable3 on slide 4 of NestedTables.pptx; returns its <a:tbl>. */
+  const tableXml = async (
+    file: string,
+    callbacks: ShapeModificationCallback[],
+  ) => {
+    await new Automizer({
+      templateDir: `${__dirname}/pptx-templates`,
+      outputDir: `${__dirname}/pptx-output`,
+    })
+      .loadRoot('RootTemplate.pptx')
+      .load('NestedTables.pptx', 'tables')
+      .addSlide('tables', 4, (slide) => {
+        slide.modifyElement('NestedTable3', callbacks);
+      })
+      .write(file);
+    const xml = (await expectXml(file, 'ppt/slides/slide2.xml')).raw();
+    return xml.slice(xml.indexOf('<a:tbl>'), xml.indexOf('</a:tbl>'));
+  };
+
+  /** Text of each cell, row by row. */
+  const cellTexts = (tbl: string): string[][] =>
+    tbl
+      .split(/<a:tr[ >]/)
+      .slice(1)
+      .map((row) =>
+        row
+          .split(/<a:tc[ >]/)
+          .slice(1)
+          .map((cell) =>
+            [...cell.matchAll(/<a:t>([^<]*)<\/a:t>/g)].map((t) => t[1]).join(''),
+          ),
+      );
+
+  test('renderTemplate fills tags in cells and leaves the markers', async () => {
+    // Template rows: 0 {{each:sub}} … Top, Last; 1 {{each:subSub*}};
+    // 2 {{each:row}} - - - -; 3 Footer …
+    const tbl = await tableXml('template-logic-nested-table-mixed.test.pptx', [
+      writeCells([
+        [undefined, undefined, undefined, '{{user.name}}', '{{IF user.vip}}VIP{{ELSE}}-{{END-IF}}'],
+        [],
+        [undefined, '{{upper(user.name)}}', undefined, undefined, '{{user.orders}} {{each:keep}}'],
+        ['{{FOR i IN items}}{{i.name}} {{END-FOR}}'],
+      ]),
+      render,
+    ]);
+    expect(cellTexts(tbl)).toEqual([
+      ['A1-A2', '{{each:sub}}', '', 'Ada', 'VIP'],
+      ['', '{{each:subSub}}', '{{each:subSub2}}', '{{each:subSub3}}', ''],
+      ['{{each:row}}', 'ADA', '-', '-', '3 {{each:keep}}'],
+      ['Apples Pears ', 'Footer', 'Footer2', 'Footer3', '-'],
+    ]);
+  });
+
+  test('renderTemplate before or after setTable gives the same table', async () => {
+    // Cells setTable keeps: the 6th of the shorter "label 2" row (copied
+    // from the {{each:row}} row) and the first footer cell (undefined)
+    const cells = writeCells([
+      [],
+      [],
+      [undefined, undefined, undefined, undefined, '{{user.name}}'],
+      ['{{IF user.vip}}VIP{{END-IF}}'],
+    ]);
+
+    const unrendered = await tableXml('template-logic-nested-table.test.pptx', [
+      cells,
+      setTable,
+    ]);
+    expect(unrendered.match(/<a:tr /g)).toHaveLength(7);
+    expect(unrendered).toContain('<a:t>subsub3-2</a:t>');
+    expect(unrendered).not.toContain('{{each:');
+
+    const renderFirst = await tableXml(
+      'template-logic-nested-table-render-first.test.pptx',
+      [cells, render, setTable],
+    );
+    const renderAfter = await tableXml(
+      'template-logic-nested-table-render-after.test.pptx',
+      [cells, setTable, render],
+    );
+    // renderTemplate renumbers a16:rowId (10000 + row) in tables it renders,
+    // setTable from 0: both are fine as long as they are unique per table
+    const rowIds = (tbl: string) =>
+      [...tbl.matchAll(/a16:rowId[^>]*val="(\d+)"/g)].map((m) => m[1]);
+    [renderFirst, renderAfter].forEach((tbl) => {
+      expect(rowIds(tbl)).toHaveLength(7);
+      expect(new Set(rowIds(tbl)).size).toBe(7);
+    });
+    const withoutRowIds = (tbl: string) =>
+      tbl.replace(/(a16:rowId[^>]*val=")\d+"/g, '$1"');
+    expect(withoutRowIds(renderAfter)).toBe(withoutRowIds(renderFirst));
+
+    const texts = cellTexts(renderFirst);
+    expect(texts).toHaveLength(7);
+    expect(texts[4]).toEqual(['label 2', '123', '345', '4562', '4672', 'Ada']);
+    expect(texts[6][0]).toBe('VIP');
+    expect(renderFirst).not.toContain('{{');
+    // Apart from the rendered cells, the table is what setTable alone makes
+    expect(
+      renderFirst.replace('<a:t>Ada</a:t>', '').replace('<a:t>VIP</a:t>', ''),
+    ).toBe(
+      unrendered
+        .replace('<a:t>{{user.name}}</a:t>', '')
+        .replace('<a:t>{{IF user.vip}}VIP{{END-IF}}</a:t>', ''),
+    );
+  });
+});
+
 test('EXEC, ALIAS, arrow functions, object/array literals', async () => {
   const { texts } = await renderShape(
     'template-logic-exec.test.pptx',
     [
-      ['{{EXEC total = 0; label = “Sum”}}'],
+      ["{{EXEC total = 0; label = 'Sum'}}"],
       ['{{FOR item IN items}}{{! total = total + item.price}}{{END-FOR}}'],
       ['{{label}}: {{total}}'],
       ['{{ALIAS who INS user.name.toUpperCase()}}'],
@@ -435,7 +591,7 @@ test('listTemplateCommands lists the commands of a template', async () => {
         writeTemplate([
           ['{{IF us', 'er.vip}}'],
           ['{{ALIAS n = user.name}}{{*n}}'],
-          ['{{END-IF}}{{FOR $p IN people}}{{END-FOR}}'],
+          ['{{END-IF}}{{FOR $p IN people}}{{END-FOR}}{{each:row}}'],
         ]),
       );
     })

@@ -84,6 +84,10 @@ way keeps or removes the row. A row that holds nothing but control tags is
 dropped. `ELSE` cannot span rows. Merged cells (`rowSpan`) are not adjusted,
 and the table frame's height is set to the sum of its row heights.
 
+Markers like `{{each:row}}` for `modify.setTable`'s `expand` (nested
+tables) are not commands: `renderTemplate` leaves them in the text, so
+`setTable` still finds them.
+
 ## Images
 
 `{{IMAGE …}}` takes an object like in docx-templates:
@@ -147,8 +151,20 @@ your own functions (passed in `data`) and methods of the values
 They are evaluated by a small built-in interpreter, not with `eval`, so a
 template cannot run arbitrary code: there are no assignments outside `EXEC`,
 no `new`, and keys like `constructor`, `prototype` or `__proto__` are
-rejected. Typographic quotes inserted by PowerPoint's AutoCorrect (`“Ada”`)
-are valid string delimiters.
+rejected.
+
+Strings need straight quotes: `'Ada'` (or `"Ada"`). PowerPoint's AutoCorrect
+replaces typed quotes with typographic ones (`’Ada’`, `“Ada”`), which are a
+syntax error. Switch that off once in *File › Options › Proofing ›
+AutoCorrect Options › AutoFormat As You Type › "Straight quotes" with "smart
+quotes"*. The [template linter](./template-lint.md) finds tags that already
+contain typographic quotes.
+
+As in docx-templates, the `fixSmartQuotes` option replaces typographic
+quotes with straight ones before a command is parsed (`“ ” „` → `"`,
+`‘ ’ ‚` → `'`). The replacement covers the whole command, including quotes
+inside a string: `{{'Ada’s'}}` then becomes `'Ada's'` and fails. Guillemets
+(`»Ada«`) are not replaced.
 
 Wrap an object literal in parentheses: `{{LINK ({ url: x })}}`. Without them,
 the `}}` of the object closes the tag.
@@ -192,6 +208,7 @@ pres.addSlide('TextReplace.pptx', 1, (slide) => {
 | `errorHandler(error, command)` | | Called when a command fails. Its return value is used instead (inserted text, condition, list, …) |
 | `failFast` | `true` | `false`: keep going and throw one error listing all failed commands at the end |
 | `processLineBreaks` | `true` | Turn `\n` in inserted values into line breaks |
+| `fixSmartQuotes` | `false` | Replace typographic quotes (`“ ” „ ‘ ’ ‚`) with straight ones before parsing, as in docx-templates |
 
 ## Listing the commands of a template
 
@@ -205,6 +222,9 @@ import { listTemplateCommands } from 'pptx-templates';
 const commands = await listTemplateCommands('templates/Offer.pptx');
 // [{ slide: 1, shape: 'Title', raw: '{{IF user.vip}}', type: 'IF', code: 'user.vip' }, …]
 ```
+
+To check a template for mistakes before rendering, use the
+[template linter](./template-lint.md).
 
 ## Good to know
 

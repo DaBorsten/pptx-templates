@@ -9,7 +9,13 @@ import {
   TemplateExpression,
   TemplateScope,
 } from './expression';
-import { parseCommand, resolveAlias, tagSyntax } from './commands';
+import {
+  fixSmartQuotes,
+  isTableMarker,
+  parseCommand,
+  resolveAlias,
+  tagSyntax,
+} from './commands';
 import { ImageTarget, loadImage, placeImages } from './images';
 
 /** Access to the slide beyond its XML, resolved on first use. */
@@ -223,7 +229,11 @@ export class TemplateRenderer {
     this.opening = syntax.opening;
     this.tagPattern = syntax.pattern;
     this.strict = options.strict ?? false;
-    const jsContext = new Scope(options.additionalJsContext ?? {}, undefined, false);
+    const jsContext = new Scope(
+      options.additionalJsContext ?? {},
+      undefined,
+      false,
+    );
     this.root = new Scope({}, new Scope(data ?? {}, jsContext, false));
   }
 
@@ -378,6 +388,8 @@ export class TemplateRenderer {
 
     let last = 0;
     for (const match of full.matchAll(this.tagPattern)) {
+      // Stays in the text (pushed with what follows) for setTable's expand
+      if (isTableMarker(match[1])) continue;
       pushText(last, match.index);
       tokens.push({
         kind: 'tag',
@@ -397,7 +409,11 @@ export class TemplateRenderer {
   }
 
   private parseDirective(inner: string, tag: string): Directive {
-    const command = parseCommand(resolveAlias(inner, this.aliases, tag), tag);
+    const resolved = resolveAlias(inner, this.aliases, tag);
+    const command = parseCommand(
+      this.options.fixSmartQuotes ? fixSmartQuotes(resolved) : resolved,
+      tag,
+    );
     const compile = (source: string) => this.compile(source, tag);
 
     switch (command.type) {
@@ -420,7 +436,10 @@ export class TemplateRenderer {
       case 'ALIAS':
         return { type: 'alias' };
       case 'EXEC':
-        return { type: 'exec', statements: this.compileStatements(command.code, tag) };
+        return {
+          type: 'exec',
+          statements: this.compileStatements(command.code, tag),
+        };
       case 'HTML':
         return { type: 'html', expr: compile(command.code) };
       case 'LINK':
@@ -605,7 +624,8 @@ export class TemplateRenderer {
       } else {
         const value = await this.value(block.tag, () => {
           const list = block.expr.evaluate(scope, this.strict);
-          if (isThenable(list)) return list.then((v) => this.toList(v, block.expr));
+          if (isThenable(list))
+            return list.then((v) => this.toList(v, block.expr));
           return this.toList(list, block.expr);
         });
         const entries = Array.isArray(value) ? value : [];
@@ -678,9 +698,7 @@ export class TemplateRenderer {
     if (!kept.length) kept = [{ source: first, nodes: [] }];
 
     sourceParagraphs.forEach((p) => body.removeChild(p));
-    kept.forEach((p) =>
-      body.appendChild(p.raw ?? this.createParagraph(p)),
-    );
+    kept.forEach((p) => body.appendChild(p.raw ?? this.createParagraph(p)));
   }
 
   private async emitTag(
@@ -728,7 +746,11 @@ export class TemplateRenderer {
         generated.forEach((raw) =>
           paragraphs.push({ source: current.source, nodes: [], raw }),
         );
-        paragraphs.push({ source: current.source, nodes: [], continuation: true });
+        paragraphs.push({
+          source: current.source,
+          nodes: [],
+          continuation: true,
+        });
         break;
       }
       case 'link': {
@@ -922,7 +944,10 @@ export class TemplateRenderer {
     )}`;
     const rel = root.ownerDocument.createElement('Relationship');
     rel.setAttribute('Id', id);
-    rel.setAttribute('Type', link.internal ? REL_TYPE_SLIDE : REL_TYPE_HYPERLINK);
+    rel.setAttribute(
+      'Type',
+      link.internal ? REL_TYPE_SLIDE : REL_TYPE_HYPERLINK,
+    );
     rel.setAttribute('Target', link.target);
     if (!link.internal) rel.setAttribute('TargetMode', 'External');
     root.appendChild(rel);
@@ -931,7 +956,11 @@ export class TemplateRenderer {
     return id;
   }
 
-  private setHyperlink(run: XmlElement, relId: string, internal: boolean): void {
+  private setHyperlink(
+    run: XmlElement,
+    relId: string,
+    internal: boolean,
+  ): void {
     const doc = run.ownerDocument;
     let rPr = this.childElements(run, 'a:rPr')[0];
     if (!rPr) {

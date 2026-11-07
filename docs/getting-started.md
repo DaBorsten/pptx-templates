@@ -23,6 +23,26 @@ $ npm install pptx-templates
 
 in the root folder of your project. This will download and install the most recent version into your existing project.
 
+#### `npm audit` reports `image-size`
+
+`npm audit` reports high-severity advisories for `image-size`
+([GHSA-5p2g-fcmc-qvqq](https://github.com/advisories/GHSA-5p2g-fcmc-qvqq),
+[GHSA-w3rx-r6r6-pgpr](https://github.com/advisories/GHSA-w3rx-r6r6-pgpr)),
+reached through `pptx-templates` → `pptxgenjs`. Your project is not exposed to them:
+`pptxgenjs` declares `image-size ^1.2.1` but never loads it, and `pptx-templates`
+measures images with its own code. The fix (2.0.3+) is outside the range `pptxgenjs`
+accepts, and a library cannot override its dependencies' versions for you, so silence
+the report in your own `package.json`:
+
+```json
+"overrides": {
+  "image-size": "^2.0.4"
+}
+```
+
+With Yarn, use `"resolutions"` instead of `"overrides"`. Run `npm install` again
+afterwards.
+
 ### As a Cloned Repository
 
 If you want to see how it works and you like to run own tests, you should clone the [repository](https://github.com/DaBorsten/pptx-templates) and install the dependencies:

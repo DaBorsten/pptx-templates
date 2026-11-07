@@ -1,7 +1,12 @@
 import fs from 'fs';
 import JSZip from 'jszip';
 import { DOMParser } from '@xmldom/xmldom';
-import { parseCommand, resolveAlias, tagSyntax } from './commands';
+import {
+  isTableMarker,
+  parseCommand,
+  resolveAlias,
+  tagSyntax,
+} from './commands';
 import { ListTemplateCommandsOptions, TemplateCommand } from './types';
 
 type Element = {
@@ -37,7 +42,10 @@ export const listTemplateCommands = async (
   const { pattern } = tagSyntax(options);
 
   const slides = Object.keys(zip.files)
-    .map((name) => ({ name, match: /^ppt\/slides\/slide(\d+)\.xml$/.exec(name) }))
+    .map((name) => ({
+      name,
+      match: /^ppt\/slides\/slide(\d+)\.xml$/.exec(name),
+    }))
     .filter((s) => s.match)
     .map((s) => ({ name: s.name, slide: Number(s.match[1]) }))
     .sort((a, b) => a.slide - b.slide);
@@ -56,6 +64,7 @@ export const listTemplateCommands = async (
         .map((t) => t.textContent)
         .join('');
       for (const match of text.matchAll(pattern)) {
+        if (isTableMarker(match[1])) continue;
         const command = parseCommand(
           resolveAlias(match[1], aliases, match[0]),
           match[0],

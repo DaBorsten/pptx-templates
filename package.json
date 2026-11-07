@@ -34,6 +34,9 @@
     "CHANGELOG.md"
   ],
   "main": "dist/index.js",
+  "bin": {
+    "pptx-templates": "dist/extensions/cli/index.js"
+  },
   "types": "dist/index.d.ts",
   "keywords": [
     "js-create-powerpoint",

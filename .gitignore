@@ -27,3 +27,4 @@ __tests__/visual-output/
 __customer__/
 src/dev-customer.ts
 
+pptx-templates-*.tgz

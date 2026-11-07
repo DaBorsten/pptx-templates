@@ -16,6 +16,7 @@ export const extensionModifiers = {
 };
 
 export * from './template-logic';
+export * from './template-lint';
 export { ShapePresets } from './shape-geometry';
 // `export type`: Bun transpiles file by file and can't tell types from
 // values in a mixed re-export; it would look for these at runtime.
