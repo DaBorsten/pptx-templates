@@ -6,6 +6,8 @@ semver, with the pre-1.0 convention that **breaking changes bump the minor**.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-07
+
 ### Added
 
 - `lintTemplate(pptx, options?)` checks the `{{…}}` tags of a template before
@@ -106,7 +108,8 @@ for that history.
   into one `.png` part. The fallback now gets the same placeholder PNG that
   pptxgenjs 3.12 wrote.
 
-[Unreleased]: https://github.com/DaBorsten/pptx-templates/compare/v0.1.3...HEAD
+[Unreleased]: https://github.com/DaBorsten/pptx-templates/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/DaBorsten/pptx-templates/compare/v0.1.3...v0.2.0
 [0.1.3]: https://github.com/DaBorsten/pptx-templates/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/DaBorsten/pptx-templates/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/DaBorsten/pptx-templates/compare/v0.1.0...v0.1.1
