@@ -1,0 +1,4 @@
+# Bun install settings. Hoisted (flat) node_modules like Yarn 1, so jest
+# configs and tools that look into node_modules/<pkg> work unchanged.
+[install]
+linker = "hoisted"

@@ -23,24 +23,25 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
+      # reads the Bun version from package.json#packageManager
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22.x
-          cache: yarn
-          cache-dependency-path: |
-            yarn.lock
-            website/yarn.lock
 
       # the root install is needed too: typedoc resolves the library's
       # dependency types through the root node_modules
       - name: Install dependencies
-        run: yarn install --frozen-lockfile
+        run: bun install --frozen-lockfile
 
       - name: Install website dependencies
-        run: yarn --cwd website install --frozen-lockfile
+        run: bun install --cwd website --frozen-lockfile
 
       - name: Build site
-        run: yarn docs:build
+        run: bun run docs:build
 
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:

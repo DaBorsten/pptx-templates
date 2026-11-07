@@ -1,6 +1,8 @@
 # AGENTS.md — Working on pptx-templates
 
 > **Fork:** this is a fork. Before adding anything, read [FORK.md](./FORK.md): new features go to `src/extensions/`, and upstream files stay untouched.
+>
+> **Package manager:** the fork uses **Bun**, not Yarn. Wherever this file or the upstream docs say `yarn <script>`, run `bun run <script>`. Bun only installs and runs scripts and `src/dev.ts`; build (`tsc`) and tests (Jest) still run on Node.
 
 Guidance for AI agents (and new contributors) working on this codebase.
 For the improvement plan derived from the 2026-08 architecture audit, see [ROADMAP.md](./ROADMAP.md).

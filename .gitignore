@@ -5,7 +5,7 @@ out/
 dist/
 
 ### Docs
-# generated API reference (yarn docs:api); the docs corpus itself is committed
+# generated API reference (bun run docs:api); the docs corpus itself is committed
 docs/api/
 # Docusaurus build artifacts
 website/build/

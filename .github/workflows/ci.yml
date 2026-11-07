@@ -19,26 +19,30 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
+      # reads the Bun version from package.json#packageManager
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: ${{ matrix.node-version }}
-          cache: yarn
 
       - name: Install dependencies
-        run: yarn install --frozen-lockfile
+        run: bun install --frozen-lockfile
 
       - name: Type check
-        run: npx tsc --noEmit
+        run: bunx tsc --noEmit
 
       - name: Lint
-        run: yarn lint
+        run: bun run lint
 
       - name: Prepare test directories
         run: mkdir -p __tests__/pptx-output __tests__/pptx-cache
 
       - name: Test
-        run: yarn test
+        run: bun run test
 
   # Tier 2 (ROADMAP Phase 5): OOXML schema validation of every written
   # archive via the Open XML SDK, packaged in a Docker image so neither
@@ -49,46 +53,54 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
+      # reads the Bun version from package.json#packageManager
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22.x
-          cache: yarn
 
       - name: Install dependencies
-        run: yarn install --frozen-lockfile
+        run: bun install --frozen-lockfile
 
       - name: Prepare test directories
         run: mkdir -p __tests__/pptx-output __tests__/pptx-cache
 
       - name: Generate output archives
-        run: yarn test
+        run: bun run test
 
       - name: Validate templates and outputs (Tier 2)
-        run: yarn validate:pptx
+        run: bun run validate:pptx
 
   # Tier 3 (ROADMAP Phase 5): perceptual diff of curated golden decks against
   # committed baselines, rendered by the pinned pptx-thumbnailer container
   # (tools/render-pptx). Baselines mean "what the pinned renderer showed when
   # a human last blessed them" — on an intended visual change, regenerate with
-  # UPDATE_BASELINES=1 yarn test:visual in the same PR.
+  # UPDATE_BASELINES=1 bun run test:visual in the same PR.
   visual-regression:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
+      # reads the Bun version from package.json#packageManager
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22.x
-          cache: yarn
 
       - name: Install dependencies
-        run: yarn install --frozen-lockfile
+        run: bun install --frozen-lockfile
 
       - name: Prepare test directories
         run: mkdir -p __tests__/pptx-output __tests__/pptx-cache
 
       - name: Golden decks vs. baselines (Tier 3)
-        run: yarn test:visual
+        run: bun run test:visual
 
       - name: Upload failure evidence (actual + diff PNGs)
         if: failure()

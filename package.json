@@ -13,20 +13,20 @@
     "node": ">=20"
   },
   "scripts": {
-    "build": "rm -rf dist && tsc",
-    "dev": "nodemon -e ts --exec 'ts-node' src/dev.ts",
+    "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc",
+    "dev": "bun --watch src/dev.ts",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "test-coverage": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage",
     "test:visual": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config jest.visual.config.ts",
     "docs:ai": "ts-node tools/ai-instructor/build.ts",
-    "docs:api": "yarn --cwd website docusaurus generate-typedoc",
-    "docs:start": "yarn --cwd website start",
-    "docs:build": "yarn --cwd website build",
-    "docs:serve": "yarn --cwd website serve",
+    "docs:api": "bun run --cwd website docusaurus generate-typedoc",
+    "docs:start": "bun run --cwd website start",
+    "docs:build": "bun run --cwd website build",
+    "docs:serve": "bun run --cwd website serve",
     "validate:pptx": "node tools/fork/validate-pptx.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "prettier": "prettier --config .prettierrc 'src/**/*.ts' --write"
+    "prettier": "prettier --config .prettierrc \"src/**/*.ts\" --write"
   },
   "files": [
     "dist",
@@ -67,7 +67,6 @@
     "eslint-plugin-unused-imports": "^4.4.1",
     "globals": "^17.14.0",
     "jest": "^30.5.2",
-    "nodemon": "^3.1.14",
     "pixelmatch": "^8.0.0",
     "pngjs": "^7.0.0",
     "pptx-thumbnailer": "0.1.0",
@@ -84,7 +83,7 @@
     "regexp.escape": "^2.0.1",
     "slugify": "^1.6.9"
   },
-  "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e",
+  "packageManager": "bun@1.4.4",
   "resolutions": {
     "image-size": "^2.0.4",
     "glob": "^14.0.2",

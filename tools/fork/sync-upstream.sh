@@ -7,6 +7,9 @@
 #   regenerating it, never by hand.
 # - CHANGELOG.md and ROADMAP.md belong to the fork; conflicts in them keep
 #   the fork's version.
+# - The fork uses Bun; upstream uses Yarn. Upstream's yarn.lock files are
+#   deleted again after the merge, and bun.lock is updated to match
+#   upstream's package.json changes. Bun reads Yarn's `resolutions` as-is.
 # - Stops on any other conflict (see FORK.md for the few lines the fork
 #   touches in upstream files).
 # - Runs the typecheck and the test suite at the end. Nothing is pushed.
@@ -43,6 +46,12 @@ if ! git merge --no-edit upstream/main; then
       git add "$own"
     fi
   done
+  # Deleted in the fork (Bun), changed upstream: keep them deleted.
+  for lock in yarn.lock website/yarn.lock; do
+    if git diff --name-only --diff-filter=U | grep -qx "$lock"; then
+      git rm -q "$lock"
+    fi
+  done
   remaining="$(git diff --name-only --diff-filter=U)"
   if [ -n "$remaining" ]; then
     echo "Resolve these conflicts, then 'git commit' and run this script again:" >&2
@@ -52,14 +61,29 @@ if ! git merge --no-edit upstream/main; then
   git commit --no-edit
 fi
 
-yarn install
-yarn -s docs:ai
+for lock in yarn.lock website/yarn.lock; do
+  if [ -e "$lock" ]; then
+    git rm -q "$lock"
+  fi
+done
+if ! git diff --cached --quiet; then
+  git commit -m "chore: drop upstream yarn.lock (the fork uses Bun)"
+fi
+
+bun install
+bun install --cwd website
+if ! git diff --quiet bun.lock website/bun.lock; then
+  git add bun.lock website/bun.lock
+  git commit -m "chore: update bun lockfiles after upstream merge"
+fi
+
+bun run docs:ai
 if ! git diff --quiet AI-INSTRUCTOR.md; then
   git add AI-INSTRUCTOR.md
   git commit -m "docs: regenerate AI-INSTRUCTOR.md after upstream merge"
 fi
 
-npx tsc --noEmit
-yarn test
+bunx tsc --noEmit
+bun run test
 
 echo "Upstream merged into $BRANCH and tests pass. Push when ready."

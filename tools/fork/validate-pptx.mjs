@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * `yarn validate:pptx`: builds the Tier-2 validator image and runs it on the
+ * `bun run validate:pptx`: builds the Tier-2 validator image and runs it on the
  * templates and test outputs.
  *
  * A Node wrapper instead of an inline shell command so it runs the same on

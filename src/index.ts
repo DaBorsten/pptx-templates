@@ -228,5 +228,5 @@ export { ConsoleLogger, NullLogger } from './helper/logger';
 export type { ILogger, Verbosity } from './helper/logger';
 
 export type { SlideLayoutInfo } from './helper/layout-index';
-export { ITemplate, IMaster, ISlide, IPptxGenJSSlide };
+export type { ITemplate, IMaster, ISlide, IPptxGenJSSlide };
 export default Automizer;

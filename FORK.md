@@ -19,7 +19,7 @@ bash tools/fork/sync-upstream.sh        # merges upstream/main into main
 ```
 
 The script fetches `upstream`, merges, regenerates `AI-INSTRUCTOR.md`
-(generated file, never resolved by hand), then runs `tsc` and `yarn test`. It
+(generated file, never resolved by hand), then runs `tsc` and `bun run test`. It
 does not push. With `rerere` enabled, a conflict you resolved once is
 resolved automatically the next time.
 
@@ -36,7 +36,7 @@ resolved automatically the next time.
    in `__tests__/pptx-templates/`.
 4. **Docs**: a new page `docs/<feature>.md`, registered with one line each in
    `website/sidebars.ts` and `tools/ai-instructor/template.md`. Then run
-   `yarn docs:ai`. Don't edit upstream docs pages.
+   `bun run docs:ai`. Don't edit upstream docs pages.
 5. **Changelog**: in `CHANGELOG.md` under `## [Unreleased]`.
 
 ### Lines the fork adds to upstream files
@@ -65,10 +65,16 @@ merge:
 | `package.json` | `validate:pptx` runs `node tools/fork/validate-pptx.mjs` | upstream's inline `docker run -v "$PWD:…"` fails in cmd and PowerShell, where `$PWD` is not expanded |
 | `src/helper/generate/generate-pptxgenjs.ts` | 1 import + `repairSvgFallbacks(...)` around `this.generator.stream()` | pptxgenjs 4 writes SVG bytes into the PNG fallback, see `src/extensions/pptxgenjs-compat/` |
 | `tsconfig.json` | `strict: false` explicit, `moduleResolution: bundler`, `rootDir: src`, `lib: es2022`, `baseUrl` removed | TypeScript 6 defaults (`strict` on, `rootDir`) and deprecations (`node10`, `baseUrl`); `es2022` for `Error` `cause` |
+| `tsconfig.json` | `useDefineForClassFields: false` and `isolatedModules: true` explicit | Bun runs the TS sources directly: without the first, subclass field declarations such as `sourceElement: XmlElement;` reset inherited values to `undefined`; the second makes `tsc` reject mixed type/value re-exports that Bun cannot resolve |
+| `src/index.ts` | `export type { ITemplate, IMaster, ISlide, IPptxGenJSSlide }` instead of `export { … }` | the names are interfaces; Bun transpiles per file and looked for them at runtime |
 | `src/classes/has-shapes.ts`, `src/classes/template.ts`, `src/helper/xml-slide-helper.ts`, `src/helper/xml-template-helper.ts` | rethrown errors pass `{ cause: error }` | ESLint 10 `preserve-caught-error` |
 | `src/helper/archive/archive-jszip.ts` | `let xmlString: string;` without the unused `''` | ESLint 10 `no-useless-assignment` |
 | `src/helper/xml-relationship-helper.ts`, `src/helper/xml-template-helper.ts`, `src/helper/modify-image-helper.ts` | `.replace('../', …)` → `.replace(/^\.\.\//, …)`; filename regex `/^(.+?)(\d+)*$/` → `/^(.+?)(\d*)$/` | CodeQL `js/incomplete-sanitization` and `js/redos`; same results for every real target |
 | `AGENTS.md` | single-test command `yarn test <file>` | plain `npx jest` lacks the flag |
+| `AGENTS.md` | one note: the fork uses Bun, read `yarn <script>` as `bun run <script>` | upstream docs and comments keep saying `yarn`; rewriting them all would conflict on every merge |
+| `package.json` | `packageManager: bun@…`, `docs:*` scripts use `bun run --cwd website`, `dev` runs `bun --watch src/dev.ts` (no nodemon) | the fork uses Bun; it reads upstream's `resolutions` as overrides, so they stay unchanged |
+| `package.json` | `build` deletes `dist` with `fs.rmSync` instead of `rm -rf`; `prettier` without single quotes | `bun run` handles both, but `npm run` on Windows uses `cmd.exe`, which has no `rm` and passes single quotes through literally; every script must run from cmd, PowerShell and bash |
+| `yarn.lock`, `website/yarn.lock` | deleted, replaced by `bun.lock` (`bunfig.toml` keeps `node_modules` hoisted like Yarn 1) | `sync-upstream.sh` deletes them again when upstream touches them |
 | `.github/workflows/ci.yml` | `26.x` added to the test matrix | the fork supports Node 20 through 26 |
 | `CHANGELOG.md`, `ROADMAP.md` | replaced: the changelog starts at 0.1.0, the roadmap is empty | the fork has its own versions; `sync-upstream.sh` keeps the fork's copies on a conflict |
 

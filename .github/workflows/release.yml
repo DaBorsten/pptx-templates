@@ -50,29 +50,33 @@ jobs:
             exit 1
           fi
 
+      # reads the Bun version from package.json#packageManager
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+
       # Node 26 ships npm >= 11.5.1, the minimum for trusted publishing
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 26.x
-          cache: yarn
           registry-url: https://registry.npmjs.org
 
       - name: Install dependencies
-        run: yarn install --frozen-lockfile
+        run: bun install --frozen-lockfile
 
       - name: Type check
-        run: npx tsc --noEmit
+        run: bunx tsc --noEmit
 
       - name: Prepare test directories
         run: mkdir -p __tests__/pptx-output __tests__/pptx-cache
 
       - name: Test
-        run: yarn test
+        run: bun run test
 
       - name: Build
-        run: yarn build
+        run: bun run build
 
-      # npm, not yarn: Yarn 1 cannot publish via OIDC.
+      # npm, not bun: npm stage publish (trusted publishing via OIDC) is npm-only.
       # Prerelease versions (1.2.3-beta.1) go to the "next" dist-tag, all
       # others to the default "latest". No explicit `--tag latest`: without
       # it npm refuses a version lower than the current latest, which keeps a
