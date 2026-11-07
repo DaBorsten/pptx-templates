@@ -1,6 +1,6 @@
 {
   "name": "pptx-templates",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "A template based pptx generator",
   "repository": {
     "type": "git",
@@ -13,7 +13,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc",
+    "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc && node -e \"require('fs').cpSync('src/vendor','dist/vendor',{recursive:true})\"",
     "dev": "bun --watch src/dev.ts",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "test-coverage": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage",
@@ -82,13 +82,11 @@
   "dependencies": {
     "@xmldom/xmldom": "^0.9.12",
     "jszip": "^3.10.2",
-    "pptxgenjs": "^4.0.1",
     "regexp.escape": "^2.0.1",
     "slugify": "^1.6.9"
   },
   "packageManager": "bun@1.4.4",
   "resolutions": {
-    "image-size": "^2.0.4",
     "glob": "^14.0.2",
     "minimatch": "^11.0.1"
   },

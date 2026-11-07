@@ -1,0 +1,4 @@
+name: pptx-templates CodeQL config
+paths-ignore:
+  # Bundled third-party code (PptxGenJS); scanned upstream, not ours to fix.
+  - src/vendor

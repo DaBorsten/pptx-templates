@@ -15,6 +15,8 @@ export default tseslint.config(
       '__customer__/',
       'src/dev.ts',
       'src/dev-*.ts',
+      // Bundled third-party code (PptxGenJS), not ours to lint.
+      'src/vendor/',
     ],
   },
   eslint.configs.recommended,
