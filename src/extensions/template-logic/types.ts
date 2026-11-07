@@ -39,6 +39,13 @@ export type RenderTemplateOptions = {
   failFast?: boolean;
   /** Turn `\n` in inserted values into line breaks. Default: true */
   processLineBreaks?: boolean;
+  /**
+   * Replace typographic quotes from AutoCorrect with straight ones before a
+   * command is parsed, as docx-templates does: `“ ” „` → `"`, `‘ ’ ‚` → `'`.
+   * This applies to the whole command, also to quotes inside a string
+   * (`'Ada’s'` then ends after `Ada`). Default: false
+   */
+  fixSmartQuotes?: boolean;
 };
 
 export type TemplateCommandType =

@@ -16,15 +16,20 @@ export type TemplateScope = {
   lookup(name: string): { found: boolean; value?: unknown };
 };
 
-type Token =
+/** Character offsets in the expression source; `end` is exclusive. */
+export type SourceRange = { start: number; end: number };
+
+type Token = (
   | { type: 'num'; value: number }
   | { type: 'str'; value: string }
   | { type: 'id'; value: string }
-  | { type: 'op'; value: string };
+  | { type: 'op'; value: string }
+) &
+  SourceRange;
 
 type Node =
-  | { type: 'lit'; value: unknown }
-  | { type: 'id'; name: string }
+  | { type: 'lit'; value: unknown; range?: SourceRange }
+  | { type: 'id'; name: string; range?: SourceRange }
   | { type: 'member'; object: Node; property: Node; optional?: boolean }
   | { type: 'call'; callee: Node; args: Node[] }
   | { type: 'unary'; op: string; arg: Node }
@@ -66,15 +71,16 @@ const OPERATORS = [
   '}',
 ];
 
-/** PowerPoint's AutoCorrect turns typed quotes into typographic ones. */
-export const QUOTES: Record<string, string> = {
-  '"': '"',
-  "'": "'",
-  '“': '”',
-  '„': '“',
-  '‘': '’',
-  '‚': '‘',
-};
+/**
+ * Strings use straight quotes only (`'Ada'`, `"Ada"`). Typographic quotes
+ * from PowerPoint's AutoCorrect (`’Ada’`, `“Ada”`) are a syntax error; turn
+ * off "Straight quotes" with "smart quotes" in the AutoCorrect options.
+ */
+export const isQuote = (char: string): boolean => char === "'" || char === '"';
+
+/** Whether `char` ends a string opened with `open`. */
+export const closesQuote = (open: string, char: string): boolean =>
+  char === open;
 
 const LITERALS: Record<string, unknown> = {
   true: true,
@@ -85,10 +91,50 @@ const LITERALS: Record<string, unknown> = {
 
 const FORBIDDEN_KEYS = ['constructor', 'prototype'];
 
+/** Keys that could reach prototypes; expressions may not access them. */
+export const isForbiddenKey = (key: string): boolean =>
+  key.startsWith('__') || FORBIDDEN_KEYS.includes(key);
+
+/** A name read by an expression, plus the static property path after it. */
+export type ExpressionReference = {
+  name: string;
+  path: string[];
+  /** Where the name (index 0) and each key of `path` (index i + 1) are. */
+  ranges: (SourceRange | undefined)[];
+};
+
+const rangeOf = (token: Token): SourceRange => ({
+  start: token.start,
+  end: token.end,
+});
+
+/** `a`, `a.b`, `a['b']`, `a[0]`, `a?.b` → name + keys; else undefined. */
+const staticPath = (node: Node): ExpressionReference | undefined => {
+  if (node.type === 'id') {
+    return { name: node.name, path: [], ranges: [node.range] };
+  }
+  if (node.type !== 'member' || node.property.type !== 'lit') return undefined;
+  const parent = staticPath(node.object);
+  return (
+    parent && {
+      name: parent.name,
+      path: [...parent.path, String(node.property.value)],
+      ranges: [...parent.ranges, node.property.range],
+    }
+  );
+};
+
 export class TemplateExpressionError extends Error {
-  constructor(message: string, expression: string) {
+  /** The expression that failed. */
+  readonly expression: string;
+  /** Where in `expression` it failed, for syntax errors. */
+  readonly range?: SourceRange;
+
+  constructor(message: string, expression: string, range?: SourceRange) {
     super(`${message} in template expression "${expression}"`);
     this.name = 'TemplateExpressionError';
+    this.expression = expression;
+    this.range = range;
   }
 }
 
@@ -127,8 +173,80 @@ export class TemplateExpression {
     return this.evaluateNode(this.ast, scope, strict);
   }
 
-  private fail(message: string): never {
-    throw new TemplateExpressionError(message, this.source);
+  /**
+   * The names the expression reads from its scope, each with the static
+   * property path after it (`user.name.toUpperCase()` → `user`,
+   * `['name', 'toUpperCase']`). Arrow parameters are not included; a path
+   * stops at the first computed key (`a[i].b` → `a`, plus `i`).
+   */
+  references(): ExpressionReference[] {
+    const refs: ExpressionReference[] = [];
+    const visit = (node: Node, bound: string[]): void => {
+      const path = staticPath(node);
+      if (path) {
+        if (!bound.includes(path.name)) refs.push(path);
+        return;
+      }
+      switch (node.type) {
+        case 'member':
+          visit(node.object, bound);
+          visit(node.property, bound);
+          return;
+        case 'call':
+          visit(node.callee, bound);
+          node.args.forEach((arg) => visit(arg, bound));
+          return;
+        case 'unary':
+          visit(node.arg, bound);
+          return;
+        case 'binary':
+          visit(node.left, bound);
+          visit(node.right, bound);
+          return;
+        case 'cond':
+          visit(node.test, bound);
+          visit(node.then, bound);
+          visit(node.else, bound);
+          return;
+        case 'array':
+          node.items.forEach((item) => visit(item, bound));
+          return;
+        case 'object':
+          node.entries.forEach((entry) => {
+            visit(entry.key, bound);
+            visit(entry.value, bound);
+          });
+          return;
+        case 'arrow':
+          visit(node.body, [...bound, ...node.params]);
+          return;
+      }
+    };
+    visit(this.ast, []);
+    return refs;
+  }
+
+  /** The expression as a plain path (`order.items`), else undefined. */
+  path(): ExpressionReference | undefined {
+    return staticPath(this.ast);
+  }
+
+  /**
+   * While parsing, the error points at the current token (or the end of
+   * the source); the tokenizer passes its own range.
+   */
+  private fail(message: string, range?: SourceRange): never {
+    const end = this.source.length;
+    const at =
+      range ??
+      (this.tokens
+        ? (this.tokens[this.pos] ?? { start: end, end })
+        : undefined);
+    throw new TemplateExpressionError(
+      message,
+      this.source,
+      at && { start: at.start, end: at.end },
+    );
   }
 
   /*
@@ -144,35 +262,39 @@ export class TemplateExpression {
         i++;
         continue;
       }
-      if (QUOTES[char]) {
-        const close = QUOTES[char];
+      const start = i;
+      if (isQuote(char)) {
         let value = '';
         i++;
-        while (i < source.length && source[i] !== close) {
+        while (i < source.length && !closesQuote(char, source[i])) {
           if (source[i] === '\\' && i + 1 < source.length) i++;
           value += source[i++];
         }
-        if (i >= source.length) this.fail('Unterminated string');
+        if (i >= source.length) {
+          this.fail('Unterminated string', { start, end: source.length });
+        }
         i++;
-        tokens.push({ type: 'str', value });
+        tokens.push({ type: 'str', value, start, end: i });
         continue;
       }
       const num = /^\d+(\.\d+)?/.exec(source.slice(i));
       if (num) {
-        tokens.push({ type: 'num', value: Number(num[0]) });
         i += num[0].length;
+        tokens.push({ type: 'num', value: Number(num[0]), start, end: i });
         continue;
       }
       const id = /^[\p{L}_$][\p{L}\p{N}_$]*/u.exec(source.slice(i));
       if (id) {
-        tokens.push({ type: 'id', value: id[0] });
         i += id[0].length;
+        tokens.push({ type: 'id', value: id[0], start, end: i });
         continue;
       }
       const op = OPERATORS.find((o) => source.startsWith(o, i));
-      if (!op) this.fail(`Unexpected character "${char}"`);
-      tokens.push({ type: 'op', value: op });
+      if (!op) {
+        this.fail(`Unexpected character "${char}"`, { start, end: start + 1 });
+      }
       i += op.length;
+      tokens.push({ type: 'op', value: op, start, end: i });
     }
     return tokens;
   }
@@ -206,7 +328,11 @@ export class TemplateExpression {
     const token = this.tokens[this.pos];
     if (token?.type === 'id' && this.opAt(this.pos + 1, '=>')) {
       this.pos += 2;
-      return { type: 'arrow', params: [token.value], body: this.parseExpression() };
+      return {
+        type: 'arrow',
+        params: [token.value],
+        body: this.parseExpression(),
+      };
     }
     if (!this.peekOp('(')) return undefined;
 
@@ -278,11 +404,13 @@ export class TemplateExpression {
           continue;
         }
         const token = this.tokens[this.pos++];
-        if (token?.type !== 'id') this.fail('Expected property name');
+        if (token?.type !== 'id') {
+          this.fail('Expected property name', token && rangeOf(token));
+        }
         node = {
           type: 'member',
           object: node,
-          property: { type: 'lit', value: token.value },
+          property: { type: 'lit', value: token.value, range: rangeOf(token) },
           optional: op === '?.',
         };
       } else if (op === '[') {
@@ -313,13 +441,14 @@ export class TemplateExpression {
   private parsePrimary(): Node {
     const token = this.tokens[this.pos++];
     if (!token) this.fail('Unexpected end');
+    const range = rangeOf(token);
     if (token.type === 'num' || token.type === 'str') {
-      return { type: 'lit', value: token.value };
+      return { type: 'lit', value: token.value, range };
     }
     if (token.type === 'id') {
       return token.value in LITERALS
-        ? { type: 'lit', value: LITERALS[token.value] }
-        : { type: 'id', name: token.value };
+        ? { type: 'lit', value: LITERALS[token.value], range }
+        : { type: 'id', name: token.value, range };
     }
     switch (token.value) {
       case '(': {
@@ -332,7 +461,7 @@ export class TemplateExpression {
       case '{':
         return this.parseObject();
     }
-    this.fail(`Unexpected "${token.value}"`);
+    this.fail(`Unexpected "${token.value}"`, range);
   }
 
   private parseObject(): Node {
@@ -340,18 +469,22 @@ export class TemplateExpression {
     while (!this.peekOp('}')) {
       const token = this.tokens[this.pos++];
       let key: Node;
-      if (token?.type === 'id' || token?.type === 'str' || token?.type === 'num') {
+      if (
+        token?.type === 'id' ||
+        token?.type === 'str' ||
+        token?.type === 'num'
+      ) {
         key = { type: 'lit', value: String(token.value) };
       } else if (token?.type === 'op' && token.value === '[') {
         key = this.parseExpression();
         this.expectOp(']');
       } else {
-        this.fail('Expected property name');
+        this.fail('Expected property name', token && rangeOf(token));
       }
       // Shorthand `{ name }`
       const value: Node =
         token.type === 'id' && (this.peekOp(',') || this.peekOp('}'))
-          ? { type: 'id', name: token.value }
+          ? { type: 'id', name: token.value, range: rangeOf(token) }
           : (this.expectOp(':'), this.parseExpression());
       entries.push({ key, value });
       if (!this.peekOp('}')) this.expectOp(',');
@@ -478,7 +611,7 @@ export class TemplateExpression {
 
   private checkKey(property: unknown): string {
     const key = String(property);
-    if (key.startsWith('__') || FORBIDDEN_KEYS.includes(key)) {
+    if (isForbiddenKey(key)) {
       this.fail(`Access to "${key}" is not allowed`);
     }
     return key;
@@ -506,9 +639,9 @@ export const parseStatements = (
     const char = source[i];
     if (quote) {
       if (char === '\\') i++;
-      else if (char === quote) quote = undefined;
-    } else if (QUOTES[char]) {
-      quote = QUOTES[char];
+      else if (closesQuote(quote, char)) quote = undefined;
+    } else if (isQuote(char)) {
+      quote = char;
     } else if ('([{'.includes(char)) {
       depth++;
     } else if (')]}'.includes(char)) {

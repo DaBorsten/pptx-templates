@@ -6,6 +6,40 @@ semver, with the pre-1.0 convention that **breaking changes bump the minor**.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-07
+
+### Added
+
+- `lintTemplate(pptx, options?)` checks the `{{…}}` tags of a template before
+  rendering: syntax errors (with hints for quotes and characters replaced by
+  PowerPoint's AutoCorrect and for misspelled commands like `{{END IF}}`),
+  blocked keys (`constructor`, `__proto__`), unclosed or unmatched `IF`/`FOR`/`ELSE`, tags
+  split by a line break, tags where `renderTemplate` cannot render them
+  (layouts, masters, notes, charts, SmartArt, `IMAGE` in tables or in
+  placeholders without their own position) and, given example `data` or a
+  JSON `schema`, names and property paths that are not in the data
+  (`src/extensions/template-lint/`). Each issue carries the `range` of the
+  wrong characters in the tag; the CLI underlines it with `~~~`.
+- CLI: `npx pptx-templates lint deck.pptx [--data data.json] [--schema schema.json]`
+  (`src/extensions/cli/`).
+- `renderTemplate` and `listTemplateCommands` leave `{{each:…}}` markers of
+  `modify.setTable`'s `expand` (nested tables) as text instead of failing on
+  them; `lintTemplate` skips them too.
+
+### Documentation
+
+- Getting started explains the `image-size` advisories `npm audit` reports via
+  `pptxgenjs` (not reachable) and the `overrides` entry that silences them.
+
+### Changed
+
+- **Breaking:** strings in template expressions need straight quotes
+  (`'Ada'`, `"Ada"`). Typographic quotes from PowerPoint's AutoCorrect
+  (`“Ada”`, `‘Ada’`, `„Ada“`) were accepted before and are now a syntax
+  error, as in docx-templates. Switch off AutoCorrect's "smart quotes" and
+  retype them, or render with the new `fixSmartQuotes: true` option
+  (docx-templates compatible). `lintTemplate` finds the affected tags.
+
 ## [0.1.3] - 2026-11-05
 
 ### Security
@@ -74,7 +108,8 @@ for that history.
   into one `.png` part. The fallback now gets the same placeholder PNG that
   pptxgenjs 3.12 wrote.
 
-[Unreleased]: https://github.com/DaBorsten/pptx-templates/compare/v0.1.3...HEAD
+[Unreleased]: https://github.com/DaBorsten/pptx-templates/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/DaBorsten/pptx-templates/compare/v0.1.3...v0.2.0
 [0.1.3]: https://github.com/DaBorsten/pptx-templates/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/DaBorsten/pptx-templates/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/DaBorsten/pptx-templates/compare/v0.1.0...v0.1.1

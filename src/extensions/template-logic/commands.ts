@@ -11,6 +11,14 @@ export type ParsedCommand = {
 
 const IDENT = '[\\p{L}_$][\\p{L}\\p{N}_$]*';
 
+/**
+ * `{{each:row}}`: a marker for `modify.setTable`'s `expand` (nested
+ * tables), not a template command. It is never a valid expression, so
+ * renderTemplate leaves it as text for setTable, and the linter skips it.
+ */
+export const isTableMarker = (inner: string): boolean =>
+  /^each:[^\s{}]+$/.test(inner.trim());
+
 /** Resolved delimiters plus a global regex matching one tag. */
 export const tagSyntax = (
   options?: Pick<
@@ -52,14 +60,20 @@ export const parseCommand = (inner: string, tag: string): ParsedCommand => {
   }
   if (/^ELSE$/i.test(content)) return { type: 'ELSE', code: '' };
   if (/^END-?IF\b/i.test(content)) return { type: 'END-IF', code: '' };
-  if ((m = new RegExp(`^FOR\\s+\\$?(${IDENT})\\s+IN\\s+([\\s\\S]+)$`, 'iu').exec(content))) {
+  if (
+    (m = new RegExp(`^FOR\\s+\\$?(${IDENT})\\s+IN\\s+([\\s\\S]+)$`, 'iu').exec(
+      content,
+    ))
+  ) {
     return { type: 'FOR', name: m[1], code: m[2].trim() };
   }
   if (/^END-?FOR\b/i.test(content)) return { type: 'END-FOR', code: '' };
   if ((m = /^(?:EXEC\s+|!)([\s\S]+)$/i.exec(content))) {
     return { type: 'EXEC', code: m[1].trim() };
   }
-  if ((m = new RegExp(`^ALIAS\\s+(${IDENT})\\s+([\\s\\S]+)$`, 'iu').exec(content))) {
+  if (
+    (m = new RegExp(`^ALIAS\\s+(${IDENT})\\s+([\\s\\S]+)$`, 'iu').exec(content))
+  ) {
     return { type: 'ALIAS', name: m[1], code: m[2].trim() };
   }
   if ((m = /^HTML\s+([\s\S]+)$/i.exec(content))) {
@@ -76,6 +90,13 @@ export const parseCommand = (inner: string, tag: string): ParsedCommand => {
   }
   return { type: 'INS', code: content };
 };
+
+/**
+ * docx-templates' `fixSmartQuotes`: typographic quotes from AutoCorrect
+ * become straight ones, in the whole command.
+ */
+export const fixSmartQuotes = (command: string): string =>
+  command.replace(/[“”„]/g, '"').replace(/[‘’‚]/g, "'");
 
 /** `*name` → the aliased command; anything else unchanged. */
 export const resolveAlias = (

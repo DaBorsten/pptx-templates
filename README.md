@@ -34,6 +34,8 @@ or
 $ npm install pptx-templates
 ```
 
+If `npm audit` reports `image-size`, see [Getting started](https://daborsten.github.io/pptx-templates/getting-started): the advisory is not reachable and an `overrides` entry silences it.
+
 To explore the library from a clone instead, see [Getting started](https://daborsten.github.io/pptx-templates/getting-started).
 
 ## Example

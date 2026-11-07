@@ -18,6 +18,7 @@ const sidebars: SidebarsConfig = {
     },
     'template-logic', // fork extension (see FORK.md)
     'shape-geometry', // fork extension (see FORK.md)
+    'template-lint', // fork extension (see FORK.md)
     'generation',
     'hyperlinks',
     'slide-management',
