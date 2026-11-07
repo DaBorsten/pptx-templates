@@ -1,4 +1,4 @@
-import type PptxGenJS from 'pptxgenjs';
+import type PptxGenJS from '../vendor/pptxgenjs';
 import { ModificationCallback } from '../types/types';
 
 /**
