@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import PptxGenJS from 'pptxgenjs';
+import PptxGenJS from '../../vendor/pptxgenjs';
 import { ISlide } from '../../interfaces/islide';
 import Automizer from '../../automizer';
 import {

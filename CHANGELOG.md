@@ -6,6 +6,23 @@ semver, with the pre-1.0 convention that **breaking changes bump the minor**.
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-07
+
+### Security
+
+- Bundle PptxGenJS 4.0.1 (`src/vendor/pptxgenjs/`, unmodified, MIT) instead of
+  depending on the `pptxgenjs` package. Its manifest declares `image-size
+  ^1.2.1`, which is affected by CVE-2025-71329 and CVE-2025-71330 (infinite
+  loops in the JXL/HEIF and ICNS parsers). The PptxGenJS bundle never loads
+  `image-size`, but the declared dependency could not be overridden by
+  consumers of this package. `pptx-templates` no longer installs it.
+
+### Changed
+
+- `pptxgenjs` is no longer a dependency; `slide.generate()` works as before.
+  To update the bundled copy, replace `index.js` and `index.d.ts` in
+  `src/vendor/pptxgenjs/`.
+
 ## [0.2.0] - 2026-11-07
 
 ### Added
@@ -108,7 +125,8 @@ for that history.
   into one `.png` part. The fallback now gets the same placeholder PNG that
   pptxgenjs 3.12 wrote.
 
-[Unreleased]: https://github.com/DaBorsten/pptx-templates/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/DaBorsten/pptx-templates/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/DaBorsten/pptx-templates/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/DaBorsten/pptx-templates/compare/v0.1.3...v0.2.0
 [0.1.3]: https://github.com/DaBorsten/pptx-templates/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/DaBorsten/pptx-templates/compare/v0.1.1...v0.1.2
