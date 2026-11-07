@@ -100,3 +100,33 @@ jobs:
             npm stage publish --access public
           fi
           echo "::notice::pptx-templates@$version staged, approve with: npm stage list pptx-templates && npm stage approve <stage-id>"
+
+  # GitHub Release with the version's section of CHANGELOG.md as patch notes.
+  # Runs only after `publish` succeeded (tests + staging).
+  github-release:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the release
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v v="$version" '
+            index($0, "## [" v "]") == 1 {f=1; next}
+            f && /^## \[/ {exit}
+            f
+          ' CHANGELOG.md > notes.md
+          if [ ! -s notes.md ]; then
+            echo "::warning::No CHANGELOG.md section for $version, falling back to generated notes"
+            gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --generate-notes
+            exit 0
+          fi
+          flags=""
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then flags="--prerelease"; fi
+          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" \
+            --notes-file notes.md $flags
