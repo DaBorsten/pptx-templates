@@ -59,17 +59,32 @@ export const listTemplateCommands = async (
       doc.getElementsByTagName('a:p') as unknown as ArrayLike<Element>,
     );
 
-    paragraphs.forEach((paragraph) => {
-      const text = Array.from(paragraph.getElementsByTagName('a:t'))
+    const texts = paragraphs.map((paragraph) =>
+      Array.from(paragraph.getElementsByTagName('a:t'))
         .map((t) => t.textContent)
-        .join('');
+        .join(''),
+    );
+
+    // As in renderTemplate, an alias may be used before it is defined
+    texts.forEach((text) => {
+      for (const match of text.matchAll(pattern)) {
+        try {
+          const command = parseCommand(match[1], match[0]);
+          if (command.type === 'ALIAS') aliases.set(command.name, command.code);
+        } catch {
+          // thrown below, where the tag is listed
+        }
+      }
+    });
+
+    paragraphs.forEach((paragraph, index) => {
+      const text = texts[index];
       for (const match of text.matchAll(pattern)) {
         if (isTableMarker(match[1])) continue;
         const command = parseCommand(
           resolveAlias(match[1], aliases, match[0]),
           match[0],
         );
-        if (command.type === 'ALIAS') aliases.set(command.name, command.code);
         commands.push({
           slide,
           shape: shapeName(paragraph),

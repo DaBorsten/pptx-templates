@@ -82,18 +82,60 @@ export const isQuote = (char: string): boolean => char === "'" || char === '"';
 export const closesQuote = (open: string, char: string): boolean =>
   char === open;
 
-const LITERALS: Record<string, unknown> = {
-  true: true,
-  false: false,
-  null: null,
-  undefined: undefined,
-};
+/** A Map: a plain object would also "contain" `constructor`, `__proto__`, … */
+const LITERALS = new Map<string, unknown>([
+  ['true', true],
+  ['false', false],
+  ['null', null],
+  ['undefined', undefined],
+]);
 
-const FORBIDDEN_KEYS = ['constructor', 'prototype'];
+/** `\n`, `\t`, `\r` in a string; any other escaped character is itself. */
+const ESCAPES: Record<string, string> = { n: '\n', t: '\t', r: '\r' };
+
+const FORBIDDEN_KEYS = [
+  'constructor',
+  'prototype',
+  '__proto__',
+  '__defineGetter__',
+  '__defineSetter__',
+  '__lookupGetter__',
+  '__lookupSetter__',
+];
 
 /** Keys that could reach prototypes; expressions may not access them. */
 export const isForbiddenKey = (key: string): boolean =>
-  key.startsWith('__') || FORBIDDEN_KEYS.includes(key);
+  FORBIDDEN_KEYS.includes(key);
+
+/** Functions that compile code from a string; never callable. */
+const CODE_CONSTRUCTORS: unknown[] = [
+  Function,
+  eval,
+  Object.getPrototypeOf(async (): Promise<void> => undefined).constructor,
+  Object.getPrototypeOf(function* (): Generator<number> {
+    yield 0;
+  }).constructor,
+  Object.getPrototypeOf(async function* (): AsyncGenerator<number> {
+    yield 0;
+  }).constructor,
+];
+
+/** `fn.call(…)` and friends would hide the real callee from the checks. */
+const INDIRECT_CALLS: unknown[] = [
+  Function.prototype.call,
+  Function.prototype.apply,
+  Function.prototype.bind,
+];
+
+/** Compile their string argument to a RegExp, which may backtrack forever. */
+const REGEX_FROM_STRING: unknown[] = [
+  String.prototype.match,
+  String.prototype.matchAll,
+  String.prototype.search,
+];
+
+/** Longest string `repeat`, `padStart` and `padEnd` may build. */
+const MAX_STRING_LENGTH = 1_000_000;
 
 /** A name read by an expression, plus the static property path after it. */
 export type ExpressionReference = {
@@ -122,6 +164,13 @@ const staticPath = (node: Node): ExpressionReference | undefined => {
       ranges: [...parent.ranges, node.property.range],
     }
   );
+};
+
+export type EvaluateOptions = {
+  /** Throw on unknown names instead of treating them as undefined. */
+  strict?: boolean;
+  /** Let `match`, `matchAll` and `search` compile a string to a RegExp. */
+  allowStringPatterns?: boolean;
 };
 
 export class TemplateExpressionError extends Error {
@@ -169,8 +218,16 @@ export class TemplateExpression {
     this.tokens = undefined;
   }
 
-  evaluate(scope: TemplateScope, strict = false): unknown {
-    return this.evaluateNode(this.ast, scope, strict);
+  /** `options` as a boolean is `strict`. */
+  evaluate(
+    scope: TemplateScope,
+    options: EvaluateOptions | boolean = {},
+  ): unknown {
+    return this.evaluateNode(
+      this.ast,
+      scope,
+      typeof options === 'boolean' ? { strict: options } : options,
+    );
   }
 
   /**
@@ -226,6 +283,58 @@ export class TemplateExpression {
     return refs;
   }
 
+  /**
+   * Blocked keys the expression uses with a fixed name, wherever they are:
+   * `a.constructor`, `'x'.constructor`, `x => x.__proto__`,
+   * `{ constructor: 1 }`. Computed keys (`a[k]`) show only when evaluated.
+   */
+  forbiddenKeys(): { key: string; range?: SourceRange }[] {
+    const found: { key: string; range?: SourceRange }[] = [];
+    const check = (node: Node): void => {
+      if (node.type !== 'lit') return visit(node);
+      const key = String(node.value);
+      if (isForbiddenKey(key)) found.push({ key, range: node.range });
+    };
+    const visit = (node: Node): void => {
+      switch (node.type) {
+        case 'member':
+          visit(node.object);
+          check(node.property);
+          return;
+        case 'call':
+          visit(node.callee);
+          node.args.forEach(visit);
+          return;
+        case 'unary':
+          visit(node.arg);
+          return;
+        case 'binary':
+          visit(node.left);
+          visit(node.right);
+          return;
+        case 'cond':
+          visit(node.test);
+          visit(node.then);
+          visit(node.else);
+          return;
+        case 'array':
+          node.items.forEach(visit);
+          return;
+        case 'object':
+          node.entries.forEach((entry) => {
+            check(entry.key);
+            visit(entry.value);
+          });
+          return;
+        case 'arrow':
+          visit(node.body);
+          return;
+      }
+    };
+    visit(this.ast);
+    return found;
+  }
+
   /** The expression as a plain path (`order.items`), else undefined. */
   path(): ExpressionReference | undefined {
     return staticPath(this.ast);
@@ -267,8 +376,15 @@ export class TemplateExpression {
         let value = '';
         i++;
         while (i < source.length && !closesQuote(char, source[i])) {
-          if (source[i] === '\\' && i + 1 < source.length) i++;
-          value += source[i++];
+          if (source[i] === '\\' && i + 1 < source.length) {
+            const escaped = source[i + 1];
+            value += Object.prototype.hasOwnProperty.call(ESCAPES, escaped)
+              ? ESCAPES[escaped]
+              : escaped;
+            i += 2;
+          } else {
+            value += source[i++];
+          }
         }
         if (i >= source.length) {
           this.fail('Unterminated string', { start, end: source.length });
@@ -277,7 +393,9 @@ export class TemplateExpression {
         tokens.push({ type: 'str', value, start, end: i });
         continue;
       }
-      const num = /^\d+(\.\d+)?/.exec(source.slice(i));
+      const num = /^(?:\d+(?:\.\d+)?|\.\d+)(?:[eE][+-]?\d+)?/.exec(
+        source.slice(i),
+      );
       if (num) {
         i += num[0].length;
         tokens.push({ type: 'num', value: Number(num[0]), start, end: i });
@@ -446,8 +564,8 @@ export class TemplateExpression {
       return { type: 'lit', value: token.value, range };
     }
     if (token.type === 'id') {
-      return token.value in LITERALS
-        ? { type: 'lit', value: LITERALS[token.value], range }
+      return LITERALS.has(token.value)
+        ? { type: 'lit', value: LITERALS.get(token.value), range }
         : { type: 'id', name: token.value, range };
     }
     switch (token.value) {
@@ -474,7 +592,11 @@ export class TemplateExpression {
         token?.type === 'str' ||
         token?.type === 'num'
       ) {
-        key = { type: 'lit', value: String(token.value) };
+        key = {
+          type: 'lit',
+          value: String(token.value),
+          range: rangeOf(token),
+        };
       } else if (token?.type === 'op' && token.value === '[') {
         key = this.parseExpression();
         this.expectOp(']');
@@ -500,15 +622,17 @@ export class TemplateExpression {
   private evaluateNode(
     node: Node,
     scope: TemplateScope,
-    strict: boolean,
+    options: EvaluateOptions,
   ): unknown {
-    const evaluate = (n: Node) => this.evaluateNode(n, scope, strict);
+    const evaluate = (n: Node) => this.evaluateNode(n, scope, options);
     switch (node.type) {
       case 'lit':
         return node.value;
       case 'id': {
         const result = scope.lookup(node.name);
-        if (!result.found && strict) this.fail(`"${node.name}" is not defined`);
+        if (!result.found && options.strict) {
+          this.fail(`"${node.name}" is not defined`);
+        }
         return result.value;
       }
       case 'member': {
@@ -534,7 +658,9 @@ export class TemplateExpression {
           fn = evaluate(node.callee);
         }
         if (typeof fn !== 'function') this.fail('Not a function');
-        return fn.apply(thisArg, node.args.map(evaluate));
+        const args = node.args.map(evaluate);
+        this.checkCall(fn, thisArg, args, options);
+        return fn.apply(thisArg, args);
       }
       case 'unary': {
         const arg = evaluate(node.arg) as number;
@@ -562,7 +688,7 @@ export class TemplateExpression {
           return this.evaluateNode(
             node.body,
             new ArrowScope(vars, scope),
-            strict,
+            options,
           );
         };
     }
@@ -609,6 +735,53 @@ export class TemplateExpression {
     }
   }
 
+  /**
+   * Calls a template may not make: compiling code, hiding the callee behind
+   * call/apply/bind, building a RegExp from a string (catastrophic
+   * backtracking blocks the process; `allowStringPatterns` permits it) and
+   * building huge strings.
+   */
+  private checkCall(
+    fn: unknown,
+    thisArg: unknown,
+    args: unknown[],
+    options: EvaluateOptions,
+  ): void {
+    if (CODE_CONSTRUCTORS.includes(fn)) {
+      this.fail('Calling the Function constructor is not allowed');
+    }
+    if (INDIRECT_CALLS.includes(fn)) {
+      this.fail('call, apply and bind are not allowed');
+    }
+    if (
+      !options.allowStringPatterns &&
+      REGEX_FROM_STRING.includes(fn) &&
+      !(args[0] instanceof RegExp)
+    ) {
+      this.fail(
+        'match, matchAll and search need a RegExp from the data, or the ' +
+          'allowStringPatterns option (for plain text use includes, ' +
+          'indexOf or startsWith)',
+      );
+    }
+    // Legacy, but still there: recompiles a RegExp from the data in place
+    if (!options.allowStringPatterns && fn === RegExp.prototype.compile) {
+      this.fail(
+        'compile is not allowed: it rebuilds a RegExp from a string ' +
+          '(the allowStringPatterns option permits it)',
+      );
+    }
+    const length =
+      fn === String.prototype.repeat
+        ? String(thisArg).length * Number(args[0])
+        : fn === String.prototype.padStart || fn === String.prototype.padEnd
+          ? Number(args[0])
+          : 0;
+    if (length > MAX_STRING_LENGTH) {
+      this.fail(`A string longer than ${MAX_STRING_LENGTH} characters`);
+    }
+  }
+
   private checkKey(property: unknown): string {
     const key = String(property);
     if (isForbiddenKey(key)) {
@@ -620,7 +793,16 @@ export class TemplateExpression {
   private getMember(object: unknown, property: unknown): unknown {
     const key = this.checkKey(property);
     if (object === null || object === undefined) return undefined;
-    return (object as Record<string, unknown>)[key];
+    const value = (object as Record<string, unknown>)[key];
+    // Rejected when read, not only when called: as a callback
+    // (`list.map(fn.call, fn)`) they would never pass checkCall.
+    if (INDIRECT_CALLS.includes(value)) {
+      this.fail('call, apply and bind are not allowed');
+    }
+    if (CODE_CONSTRUCTORS.includes(value)) {
+      this.fail('Calling the Function constructor is not allowed');
+    }
+    return value;
   }
 }
 

@@ -31,7 +31,11 @@ Exit code: 0 no errors, 1 errors (or too many warnings), 2 invalid call.`;
 
 const readJson = (file: string, what: string): Record<string, unknown> => {
   try {
-    return JSON.parse(fs.readFileSync(file, 'utf8'));
+    const value = JSON.parse(fs.readFileSync(file, 'utf8'));
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      throw new Error('expected a JSON object');
+    }
+    return value;
   } catch (error) {
     throw new Error(
       `Cannot read ${what} ${file}: ${(error as Error).message}`,
@@ -88,6 +92,15 @@ export const supportsColor = (
   return isTTY && env.TERM !== 'dumb';
 };
 
+/**
+ * Text from the .pptx (tags, shape names) goes to a terminal: control
+ * characters could hide or forge output there. Each becomes one space, so
+ * the marker line under a tag still fits (a tab would shift it, too).
+ */
+const printable = (text: string): string =>
+  // eslint-disable-next-line no-control-regex -- stripping control chars is the point here
+  text.replace(/[\u0000-\u001f\u007f-\u009f]/g, ' ');
+
 export const formatIssues = (
   file: string,
   issues: TemplateLintIssue[],
@@ -96,16 +109,15 @@ export const formatIssues = (
   if (!issues.length) return '';
   const paint = (fn: (t: string) => string, text: string) =>
     color ? fn(text) : text;
-  const lines = [paint(style.underline, file)];
+  const lines = [paint(style.underline, printable(file))];
   issues.forEach((issue) => {
     const tone = issue.severity === 'error' ? style.red : style.yellow;
-    lines.push(`  ${paint(style.cyan, issueLocation(issue))}`);
+    lines.push(`  ${paint(style.cyan, printable(issueLocation(issue)))}`);
     lines.push(
-      `    ${paint((t) => style.bold(tone(t)), issue.severity)}  ${issue.message}  ${paint(style.dim, `(${issue.rule})`)}`,
+      `    ${paint((t) => style.bold(tone(t)), issue.severity)}  ${printable(issue.message)}  ${paint(style.dim, `(${issue.rule})`)}`,
     );
     if (issue.tag) {
-      // Tabs would shift the marker line
-      lines.push(`    ${paint(style.dim, 'tag:')} ${issue.tag.replace(/\t/g, ' ')}`);
+      lines.push(`    ${paint(style.dim, 'tag:')} ${printable(issue.tag)}`);
       if (issue.range) {
         const { start, end } = issue.range;
         lines.push(
@@ -113,7 +125,9 @@ export const formatIssues = (
         );
       }
     }
-    if (issue.hint) lines.push(`    ${paint(style.dim, 'hint:')} ${issue.hint}`);
+    if (issue.hint) {
+      lines.push(`    ${paint(style.dim, 'hint:')} ${printable(issue.hint)}`);
+    }
   });
   return lines.join('\n') + '\n';
 };

@@ -1,6 +1,6 @@
 {
   "name": "pptx-templates",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "A template based pptx generator",
   "repository": {
     "type": "git",
@@ -26,7 +26,8 @@
     "validate:pptx": "node tools/fork/validate-pptx.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "prettier": "prettier --config .prettierrc \"src/**/*.ts\" --write"
+    "prettier": "prettier --config .prettierrc \"src/**/*.ts\" --write",
+    "format:check": "prettier --config .prettierrc \"src/extensions/**/*.ts\" --check"
   },
   "files": [
     "dist",

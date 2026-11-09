@@ -21,6 +21,14 @@ export type RenderTemplateOptions = {
   /** Throw on unknown identifiers instead of treating them as undefined. */
   strict?: boolean;
   /**
+   * Let `match`, `matchAll` and `search` take a string pattern
+   * (`name.match('^A')`). The string is compiled to a regular expression,
+   * and a crafted one can block the process for minutes, so set this only
+   * for templates you trust. A `RegExp` from the data always works.
+   * Default: false
+   */
+  allowStringPatterns?: boolean;
+  /**
    * Extra names (helpers, constants) for expressions, looked up after `data`,
    * so `data` can shadow them.
    */
