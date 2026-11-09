@@ -159,6 +159,23 @@ const reported: Record<string, Case> = {
     text: ["{{a['__proto__']}}"],
     issues: [['syntax', 'error', "'__proto__'"]],
   },
+  'forbidden key on a value that is not a name': {
+    text: ["{{'x'.constructor}}"],
+    issues: [['syntax', 'error', 'constructor']],
+  },
+  'forbidden key on an arrow parameter': {
+    text: ['{{[1].map(x => x.constructor)}}'],
+    issues: [['syntax', 'error', 'constructor']],
+  },
+  'forbidden key in an object literal': {
+    text: ['{{[{ __proto__: 1 }].length}}'],
+    issues: [['syntax', 'error', '__proto__']],
+  },
+  'constructor is a name like any other': {
+    text: ['{{constructor.keys(user)}}'],
+    options: { data },
+    issues: [['unknown-variable', 'warning', 'constructor']],
+  },
 
   // unknown-alias
   'unknown alias': { text: ['{{*who}}'], issues: [['unknown-alias', 'error', '{{*who}}']] },
@@ -518,6 +535,15 @@ const accepted: Record<string, Case> = {
   "setTable's {{each:…}} markers": {
     text: ['{{each:row}}', '{{each:subSub2}} {{ each:sub }}'],
     options: { data },
+    issues: [],
+  },
+  'keys with two underscores (GraphQL __typename)': {
+    text: ['{{a.__typename}}'],
+    issues: [],
+  },
+  'data named like a command': {
+    text: ["{{link + 1}} {{image ? 'a' : 'b'}} {{html || 'none'}}"],
+    options: { data: { link: 1, image: 1, html: '' } },
     issues: [],
   },
   'names an invalid patternProperties pattern might match': {

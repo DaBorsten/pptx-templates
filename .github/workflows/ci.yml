@@ -38,6 +38,10 @@ jobs:
       - name: Lint
         run: bun run lint
 
+      # fork code only: upstream files keep upstream's formatting
+      - name: Format check (src/extensions)
+        run: bun run format:check
+
       - name: Prepare test directories
         run: mkdir -p __tests__/pptx-output __tests__/pptx-cache
 

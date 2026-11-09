@@ -14,7 +14,6 @@ import {
   SourceRange,
   TemplateExpression,
   TemplateExpressionError,
-  isForbiddenKey,
 } from '../template-logic/expression';
 import { DataModel, Known, suggest } from './data-model';
 import {
@@ -616,15 +615,13 @@ class TemplateLinter {
     report: (issue: Omit<IssueInput, 'shape' | 'tag'>) => void,
   ): void {
     // Rejected by the renderer only when evaluated, so check without data too
-    for (const ref of expr.references()) {
-      const index = ref.path.findIndex(isForbiddenKey);
-      if (index === -1) continue;
+    for (const { key, range } of expr.forbiddenKeys()) {
       report({
         severity: 'error',
         rule: 'syntax',
-        message: `Access to "${ref.path[index]}" is not allowed`,
+        message: `Access to "${key}" is not allowed`,
         hint: 'Keys like constructor, prototype or __proto__ are blocked for safety.',
-        range: this.locate(expr.source, ref.ranges[index + 1]),
+        range: this.locate(expr.source, range),
       });
     }
     if (!this.model.enabled) return;
@@ -739,6 +736,8 @@ export const lintTemplate = async (
     if (!rels) continue;
     descendants(parseXml(rels), 'Relationship').forEach((rel) => {
       if (rel.getAttribute('TargetMode') === 'External') return;
+      // A relationship without Target is broken, but not the linter's topic
+      if (!rel.getAttribute('Target')) return;
       const target = resolvePath(name, rel.getAttribute('Target'));
       if (!slideOfPart.has(target)) slideOfPart.set(target, slide);
     });

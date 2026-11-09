@@ -730,6 +730,9 @@ enclosing scope:
 Total: {{total.toFixed(2)}}
 ```
 
+A variable that is first set inside a loop exists only for that pass of the
+loop. Set it before the loop, as `total` above, to keep its value.
+
 Your `data` is never changed: an `EXEC` that assigns a name from `data`
 defines a new variable that hides it.
 
@@ -806,10 +809,45 @@ comparisons, `== != === !==`, `&& || ??` and `cond ? a : b`. You can call
 your own functions (passed in `data`) and methods of the values
 (`name.toUpperCase()`).
 
+In a string, `\n`, `\t` and `\r` are a line break, a tab and a carriage
+return; any other character after a backslash stands for itself (`'it\'s'`),
+so `'C:\\temp'` is the text `C:\temp`.
+Numbers can be written as `1.5`, `.5` or `1e3`.
+
+A data field named like a command still works in an expression: `{{link + 1}}`
+and `{{image ? 'yes' : 'no'}}` are insertions, because a command's code never
+starts with an operator. Write `{{= link}}` to insert a field named like a
+command followed by something else.
+
 They are evaluated by a small built-in interpreter, not with `eval`, so a
 template cannot run arbitrary code: there are no assignments outside `EXEC`,
 no `new`, and keys like `constructor`, `prototype` or `__proto__` are
-rejected.
+rejected. Names resolve only against your data, `additionalJsContext` and
+the variables of the template, never against JavaScript globals. A few calls
+are rejected as well:
+
+- `call`, `apply` and `bind`, and the `Function` constructor if the data
+  exposes it. They cannot be read either, so not passed on as a callback.
+- `match`, `matchAll` and `search` with a string: the string would be compiled
+  to a regular expression, and a crafted one blocks the process. Pass a
+  `RegExp` in the data, or use `includes`, `indexOf`, `startsWith`. For
+  templates you trust, the `allowStringPatterns` option permits string
+  patterns.
+- `compile` on a `RegExp` from the data, which would rebuild it from a string
+  (also permitted by `allowStringPatterns`).
+- `repeat`, `padStart` and `padEnd` for more than 1,000,000 characters.
+
+#### Templates you did not write
+
+The interpreter keeps a template away from Node.js, not away from your data.
+A template can call every method of every value you pass in, so
+`{{items.pop()}}` changes your array and `{{user.delete()}}` calls your
+method. There is also no time limit: a template can still keep the process
+busy with large loops. For templates from people you do not trust:
+
+- Pass plain data (JSON-like copies), not model instances, database handles
+  or libraries such as lodash.
+- Render in a worker or child process with a timeout.
 
 Strings need straight quotes: `'Ada'` (or `"Ada"`). PowerPoint's AutoCorrect
 replaces typed quotes with typographic ones (`’Ada’`, `“Ada”`), which are a
@@ -862,6 +900,7 @@ pres.addSlide('TextReplace.pptx', 1, (slide) => {
 | `cmdDelimiter` | | docx-templates spelling: one string for both sides (`'+++'`) or `[open, close]` |
 | `additionalJsContext` | | Extra helpers and constants. `data` takes precedence |
 | `strict` | `false` | Throw on unknown top-level names instead of treating them as `undefined` |
+| `allowStringPatterns` | `false` | Let `match`, `matchAll` and `search` take a string pattern (`name.match('^A')`). Only for templates you trust: a crafted pattern can block the process |
 | `rejectNullish` | `false` | Throw when an insertion is `null` or `undefined` |
 | `errorHandler(error, command)` | | Called when a command fails. Its return value is used instead (inserted text, condition, list, …) |
 | `failFast` | `true` | `false`: keep going and throw one error listing all failed commands at the end |

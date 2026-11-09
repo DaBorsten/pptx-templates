@@ -758,3 +758,264 @@ describe('IMAGE', () => {
     ).rejects.toThrow(/unsupported extension "tiff"/);
   });
 });
+
+describe('expressions stay inside the data', () => {
+  test('inherited names of Object are not values', async () => {
+    const { texts } = await renderShape(
+      'template-logic-sandbox.test.pptx',
+      [['[{{constructor}}{{__proto__}}{{toString}}{{hasOwnProperty}}]']],
+      {},
+    );
+    expect(texts).toEqual(['[]']);
+
+    await expect(
+      renderShape(
+        'template-logic-sandbox-strict.test.pptx',
+        [['{{constructor}}']],
+        {},
+        { strict: true },
+      ),
+    ).rejects.toThrow(/"constructor" is not defined/);
+
+    // Reached Function through Object.getOwnPropertyDescriptor before
+    await expect(
+      renderShape(
+        'template-logic-sandbox-escape.test.pptx',
+        [
+          [
+            "{{constructor.getOwnPropertyDescriptor(constructor.getPrototypeOf(x => x), 'constructor').value('return process.version')()}}",
+          ],
+        ],
+        {},
+      ),
+    ).rejects.toThrow(/Not a function/);
+  });
+
+  test('no code from strings, no call/apply/bind, no RegExp from a string', async () => {
+    const rejects = (tag: string, templateData: TemplateData, error: RegExp) =>
+      expect(
+        renderShape('template-logic-sandbox-calls.test.pptx', [[tag]], templateData),
+      ).rejects.toThrow(error);
+
+    await rejects(
+      "{{make('return 1')()}}",
+      { make: Function },
+      /Function constructor is not allowed/,
+    );
+    await rejects(
+      '{{upper.call(1)}}',
+      data,
+      /call, apply and bind are not allowed/,
+    );
+    await rejects(
+      "{{'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa!'.match('^(a+)+$')}}",
+      {},
+      /match, matchAll and search need a RegExp/,
+    );
+    await rejects("{{'a'.repeat(2000000)}}", {}, /longer than 1000000/);
+    // Passed on as a callback, call/apply/bind would never be called directly
+    await rejects(
+      '{{[upper].map(upper.bind, upper.call)[0]}}',
+      data,
+      /call, apply and bind are not allowed/,
+    );
+    await rejects(
+      '{{[1].map(upper.apply, upper)}}',
+      data,
+      /call, apply and bind are not allowed/,
+    );
+    // compile() would turn the RegExp from the data into a crafted one
+    const digits = /\d+/;
+    await rejects(
+      "{{digits.compile('^(a+)+$').test('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa!')}}",
+      { digits },
+      /compile is not allowed/,
+    );
+    expect(digits.source).toBe('\\d+');
+
+    await rejects(
+      "{{'aaaa!'.matchAll('(a+)+$')}}",
+      {},
+      /match, matchAll and search need a RegExp/,
+    );
+    await rejects("{{'a'.padStart(2000000)}}", {}, /longer than 1000000/);
+    await rejects("{{'a'.padEnd(2000000, 'ab')}}", {}, /longer than 1000000/);
+    // Reading the Function constructor is enough: it could be a callback
+    await rejects(
+      "{{['return 1'].map(lib.make)}}",
+      { lib: { make: Function } },
+      /Function constructor is not allowed/,
+    );
+    // A data field that is merely named like them is a value like any other
+    const named = await renderShape(
+      'template-logic-sandbox-names.test.pptx',
+      [['{{phone.call}} {{job.apply}} {{rope.bind(2)}}']],
+      {
+        phone: { call: 'ring' },
+        job: { apply: 'now' },
+        rope: { bind: (n: number) => n * 2 },
+      },
+    );
+    expect(named.texts).toEqual(['ring now 4']);
+
+    const { texts } = await renderShape(
+      'template-logic-sandbox-regexp.test.pptx',
+      [["{{'order 42'.match(digits)[0]}} {{'ab'.repeat(2)}}"]],
+      { digits: /\d+/ },
+    );
+    expect(texts).toEqual(['42 abab']);
+
+    // String patterns are opt-in, for templates you trust
+    const trusted = await renderShape(
+      'template-logic-string-patterns.test.pptx',
+      [
+        [
+          "{{'order 42'.match('[0-9]+')[0]}} {{'abc'.search('c')}} {{digits.compile('[a-z]+').test('abc')}}",
+        ],
+      ],
+      { digits: /\d+/ },
+      { allowStringPatterns: true },
+    );
+    expect(trusted.texts).toEqual(['42 2 true']);
+  });
+});
+
+test('string escapes, number forms, __keys and data named like commands', async () => {
+  const { slide, texts } = await renderShape(
+    'template-logic-literals.test.pptx',
+    [
+      ["{{'a\\\\b'}} {{'x\\ny'}}"],
+      ['{{1e3 + .5}} {{2.5e-1}}'],
+      ['{{user.__typename}}'],
+      ["{{link + '!'}} {{image ? 'yes' : 'no'}} {{html || 'none'}}"],
+    ],
+    { user: { __typename: 'User' }, link: 'L', image: 1, html: '' },
+  );
+  expect(texts).toEqual(['a\\b xy', '1000.5 0.25', 'User', 'L! yes none']);
+  // '\n' in a string literal is a line break, as in a data value
+  expect(shapeXml(slide.raw(), 'setText').match(/<a:br/g)).toHaveLength(1);
+});
+
+test('errorHandler and failFast: false also get empty tags and unknown aliases', async () => {
+  const paragraphs = [['A {{ }} B {{*nope}}']];
+  const handled = await renderShape(
+    'template-logic-handler-tags.test.pptx',
+    paragraphs,
+    {},
+    { errorHandler: (_error, command) => `<${command}>` },
+  );
+  expect(handled.texts).toEqual(['A &lt;{{ }}&gt; B &lt;{{*nope}}&gt;']);
+
+  await expect(
+    renderShape('template-logic-failfast-tags.test.pptx', paragraphs, {}, {
+      failFast: false,
+    }),
+  ).rejects.toThrow(
+    /2 error\(s\):\n- Empty template tag \{\{ \}\}\n- \{\{\*nope\}\}: unknown alias "nope"\./,
+  );
+
+  await expect(
+    renderShape('template-logic-empty-tag.test.pptx', paragraphs, {}),
+  ).rejects.toThrow(/Empty template tag \{\{ \}\}/);
+});
+
+test('tables: control paragraphs in a cell, END-FOR before FOR in one row', async () => {
+  /** Replaces the single paragraph of a row's first cell by one per text. */
+  const cellParagraphs =
+    (row: number, texts: string[]) =>
+    (element: XmlElement): void => {
+      const cell = element
+        .getElementsByTagName('a:tr')
+        [row].getElementsByTagName('a:tc')[0];
+      const first = cell.getElementsByTagName('a:p')[0];
+      texts
+        .slice(1)
+        .reverse()
+        .forEach((text) => {
+          const paragraph = first.cloneNode(true) as XmlElement;
+          paragraph.getElementsByTagName('a:t')[0].textContent = text;
+          first.parentNode.insertBefore(paragraph, first.nextSibling);
+        });
+    };
+
+  const automizer = new Automizer({
+    templateDir: `${__dirname}/pptx-templates`,
+    outputDir: `${__dirname}/pptx-output`,
+  });
+  await automizer
+    .loadRoot('RootTemplate.pptx')
+    .load('SlideWithTables.pptx', 'tables')
+    .addSlide('tables', 1, (slide) => {
+      slide.modifyElement('TableWithHeader', [
+        writeCells([
+          [],
+          ['{{IF user.vip}}', '', '', ''],
+          ["{{HTML '<p>One</p><p>Two</p>'}}", '', '', ''],
+        ]),
+        cellParagraphs(1, ['{{IF user.vip}}', 'Text', '{{END-IF}}']),
+        modify.renderTemplate(data),
+      ]);
+      slide.modifyElement('TableDefault', [
+        writeCells([
+          ['{{FOR item IN items}}{{item.name}}', '', '', ''],
+          ['{{END-FOR}}', '{{FOR n IN [1, 2]}}', '', ''],
+          ['{{n}}', '{{END-FOR}}', '', ''],
+        ]),
+        modify.renderTemplate(data),
+      ]);
+    })
+    .write('template-logic-table-cells.test.pptx');
+
+  const slide = await expectXml(
+    'template-logic-table-cells.test.pptx',
+    'ppt/slides/slide2.xml',
+  );
+  const frame = (name: string) =>
+    slide
+      .elements('p:graphicFrame')
+      .find(
+        (f) => f.getElementsByTagName('p:cNvPr')[0].getAttribute('name') === name,
+      );
+  const firstCells = (name: string) =>
+    Array.from(frame(name).getElementsByTagName('a:tr')).map(
+      (row) => row.getElementsByTagName('a:tc')[0],
+    );
+
+  // The paragraphs of {{IF …}} and {{END-IF}} leave no empty paragraph
+  const cell = firstCells('TableWithHeader')[1];
+  expect(
+    Array.from(cell.getElementsByTagName('a:p')).map((p) => p.textContent),
+  ).toEqual(['Text']);
+  // Nor does the paragraph of {{HTML …}}
+  expect(
+    Array.from(
+      firstCells('TableWithHeader')[2].getElementsByTagName('a:p'),
+    ).map((p) => p.textContent),
+  ).toEqual(['One', 'Two']);
+
+  // {{END-FOR}} closes the loop over items, not the one opened next to it
+  expect(firstCells('TableDefault').map((c) => c.textContent)).toEqual([
+    'Apples',
+    'Pears',
+    '1',
+    '2',
+  ]);
+});
+
+test('listTemplateCommands resolves an alias used before its definition', async () => {
+  const zip = new JSZip();
+  zip.file(
+    'ppt/slides/slide1.xml',
+    '<p:sld xmlns:a="a" xmlns:p="p"><p:sp><p:txBody>' +
+      '<a:p><a:r><a:t>{{*who}}</a:t></a:r></a:p>' +
+      '<a:p><a:r><a:t>{{ALIAS who INS user.name}}</a:t></a:r></a:p>' +
+      '</p:txBody></p:sp></p:sld>',
+  );
+  const commands = await listTemplateCommands(
+    await zip.generateAsync({ type: 'nodebuffer' }),
+  );
+  expect(commands.map(({ type, code }) => [type, code])).toEqual([
+    ['INS', 'user.name'],
+    ['ALIAS', 'INS user.name'],
+  ]);
+});

@@ -77,6 +77,7 @@ merge:
 | `package.json` | `build` deletes `dist` with `fs.rmSync` instead of `rm -rf`; `prettier` without single quotes | `bun run` handles both, but `npm run` on Windows uses `cmd.exe`, which has no `rm` and passes single quotes through literally; every script must run from cmd, PowerShell and bash |
 | `yarn.lock`, `website/yarn.lock` | deleted, replaced by `bun.lock` (`bunfig.toml` keeps `node_modules` hoisted like Yarn 1) | `sync-upstream.sh` deletes them again when upstream touches them |
 | `.github/workflows/ci.yml` | `26.x` added to the test matrix | the fork supports Node 20 through 26 |
+| `package.json`, `.github/workflows/ci.yml` | script `format:check` and a CI step running it (added, not changed) | Prettier was not enforced anywhere; the check covers `src/extensions/` only, so upstream files keep upstream's formatting |
 | `CHANGELOG.md`, `ROADMAP.md` | replaced: the changelog starts at 0.1.0, the roadmap is empty | the fork has its own versions; `sync-upstream.sh` keeps the fork's copies on a conflict |
 
 If upstream ever ships a helper with the same name as a fork helper,

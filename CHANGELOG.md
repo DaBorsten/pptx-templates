@@ -6,6 +6,52 @@ semver, with the pre-1.0 convention that **breaking changes bump the minor**.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-09
+
+### Security
+
+- `renderTemplate`: a template tag could run arbitrary code. Names inherited
+  from `Object.prototype` (`{{constructor}}`, `{{__proto__}}`) were read as
+  values, so a tag could reach `Object` and from there the `Function`
+  constructor. Names now resolve only against the data. In addition, calling
+  the `Function` constructor, `call`, `apply` and `bind` is rejected.
+- `renderTemplate`: `match`, `matchAll` and `search` reject a string pattern
+  (it was compiled to a regular expression; a crafted one blocked the process
+  for minutes), and `repeat`, `padStart`, `padEnd` reject results over
+  1,000,000 characters. **Behavior change:** `{{name.match('a')}}` now fails;
+  pass a `RegExp` in the data, use `includes`, or set the new
+  `allowStringPatterns` option for templates you trust. `compile` on a
+  `RegExp` from the data is rejected for the same reason (it also changed the
+  caller's `RegExp`).
+- `renderTemplate`: `call`, `apply` and `bind` are rejected when read, so they
+  cannot be passed on as a callback either (`list.map(fn.call, fn)`).
+- `pptx-templates lint`: control characters in tags and shape names of the
+  linted file are no longer printed to the terminal.
+
+### Fixed
+
+- `renderTemplate`: a paragraph holding only `{{IF …}}`, `{{END-IF}}` or
+  `{{HTML …}}` left an empty paragraph in table cells.
+- `renderTemplate`: `{{END-FOR}}` and a new `{{FOR …}}` in the same table row
+  closed the new loop instead of the earlier one.
+- `renderTemplate`: data fields named `link`, `image` or `html` were read as
+  commands in `{{link + 1}}` or `{{image ? 'a' : 'b'}}`.
+- `renderTemplate`: empty tags and unknown aliases now go to `errorHandler`
+  and `failFast: false` like other errors, and reject with a
+  `TemplateRenderError`.
+- `renderTemplate`: only `__proto__` and the legacy `__define*__`/`__lookup*__`
+  accessors are blocked, no longer every key starting with `__`
+  (`{{user.__typename}}` works).
+- `renderTemplate`: `\n`, `\t`, `\r` in string literals; numbers like `1e3`
+  and `.5`.
+- `listTemplateCommands`: an alias used before its definition no longer
+  throws.
+- `lintTemplate`: blocked keys are also reported on values that are not a
+  name (`{{'x'.constructor}}`, `{{list.map(x => x.constructor)}}`).
+- `lintTemplate`: no crash on a relationship without `Target` or a schema
+  `$ref` with a malformed `%` escape. The CLI rejects `--data`/`--schema`
+  files that are not a JSON object.
+
 ## [0.2.1] - 2026-11-07
 
 ### Security
@@ -125,7 +171,8 @@ for that history.
   into one `.png` part. The fallback now gets the same placeholder PNG that
   pptxgenjs 3.12 wrote.
 
-[Unreleased]: https://github.com/DaBorsten/pptx-templates/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/DaBorsten/pptx-templates/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/DaBorsten/pptx-templates/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/DaBorsten/pptx-templates/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/DaBorsten/pptx-templates/compare/v0.1.3...v0.2.0
 [0.1.3]: https://github.com/DaBorsten/pptx-templates/compare/v0.1.2...v0.1.3

@@ -153,7 +153,8 @@ const imageSize = (image: LoadedImage, slot: Frame) => {
   if (width && height) {
     return { cx: width * EMU_PER_CM, cy: height * EMU_PER_CM };
   }
-  if (width) return { cx: width * EMU_PER_CM, cy: (width * EMU_PER_CM) / ratio };
+  if (width)
+    return { cx: width * EMU_PER_CM, cy: (width * EMU_PER_CM) / ratio };
   if (height) {
     return { cx: height * EMU_PER_CM * ratio, cy: height * EMU_PER_CM };
   }
@@ -191,7 +192,11 @@ const addRelation = (target: ImageTarget, file: string): string => {
     'Id',
     true,
   )}`;
-  const attributes = { Id: id, Type: REL_TYPE_IMAGE, Target: `../media/${file}` };
+  const attributes = {
+    Id: id,
+    Type: REL_TYPE_IMAGE,
+    Target: `../media/${file}`,
+  };
   const rel = root.ownerDocument.createElement('Relationship');
   Object.entries(attributes).forEach(([k, v]) => rel.setAttribute(k, v));
   root.appendChild(rel);
@@ -218,7 +223,11 @@ const createPicture = (
   id: number,
 ): XmlElement => {
   const doc = shape.ownerDocument;
-  const el = (tag: string, attrs: Record<string, string | number> = {}, ...children: XmlElement[]) => {
+  const el = (
+    tag: string,
+    attrs: Record<string, string | number> = {},
+    ...children: XmlElement[]
+  ) => {
     const node = doc.createElement(tag) as unknown as XmlElement;
     Object.entries(attrs).forEach(([k, v]) => node.setAttribute(k, String(v)));
     children.forEach((child) => node.appendChild(child));

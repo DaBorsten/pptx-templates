@@ -28,19 +28,25 @@ export const renderTemplate =
     data: TemplateData | Promise<TemplateData>,
     options?: RenderTemplateOptions,
   ) =>
-  async (element: XmlDocument | XmlElement, context?: unknown): Promise<void> => {
+  async (
+    element: XmlDocument | XmlElement,
+    context?: unknown,
+  ): Promise<void> => {
     let write: () => void = () => undefined;
     const part = isXmlElement(context) ? undefined : (context as PartContext);
-    const relsPath =
-      part?.targetPath && PptPaths.relsOf(part.targetPath);
+    const relsPath = part?.targetPath && PptPaths.relsOf(part.targetPath);
 
     const relations = async (): Promise<XmlElement | undefined> => {
       // modifyElement(): the slide's <Relationships> element
       if (isXmlElement(context)) return context;
       // slide.modify(): the slide/master/layout the document belongs to
       if (!part?.targetArchive || !relsPath) return undefined;
-      const rels = await XmlHelper.getXmlFromArchive(part.targetArchive, relsPath);
-      write = () => XmlHelper.writeXmlToArchive(part.targetArchive, relsPath, rels);
+      const rels = await XmlHelper.getXmlFromArchive(
+        part.targetArchive,
+        relsPath,
+      );
+      write = () =>
+        XmlHelper.writeXmlToArchive(part.targetArchive, relsPath, rels);
       return rels.documentElement as unknown as XmlElement;
     };
 

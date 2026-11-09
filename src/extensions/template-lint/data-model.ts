@@ -264,9 +264,13 @@ export class DataModel {
       if (!ref.startsWith('#')) return undefined;
       let target: unknown = this.schema;
       for (const segment of ref.slice(1).split('/').filter(Boolean)) {
-        const key = decodeURIComponent(segment)
-          .replace(/~1/g, '/')
-          .replace(/~0/g, '~');
+        let decoded: string;
+        try {
+          decoded = decodeURIComponent(segment);
+        } catch {
+          return undefined; // malformed %-escape: undecidable, like a remote ref
+        }
+        const key = decoded.replace(/~1/g, '/').replace(/~0/g, '~');
         target = (target as Record<string, unknown>)?.[key];
       }
       current = target as JsonSchema;

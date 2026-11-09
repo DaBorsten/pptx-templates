@@ -5,6 +5,7 @@ import { MultiTextHelper } from '../../helper/multitext-helper';
 import { HtmlToMultiTextHelper } from '../../helper/html-to-multitext-helper';
 import { RenderTemplateOptions, TemplateData } from './types';
 import {
+  EvaluateOptions,
   parseStatements,
   TemplateExpression,
   TemplateScope,
@@ -12,6 +13,7 @@ import {
 import {
   fixSmartQuotes,
   isTableMarker,
+  ParsedCommand,
   parseCommand,
   resolveAlias,
   tagSyntax,
@@ -86,6 +88,8 @@ type BodyTokens = {
   tokens: TextToken[];
   /** Source paragraphs that contain structural tags and nothing else. */
   controlOnly: Set<XmlElement>;
+  /** The first source paragraph (a table row is written to a clone). */
+  first?: XmlElement;
 };
 
 type RowToken = {
@@ -207,7 +211,7 @@ export class TemplateRenderError extends Error {
 export class TemplateRenderer {
   private readonly opening: string;
   private readonly tagPattern: RegExp;
-  private readonly strict: boolean;
+  private readonly evaluation: EvaluateOptions;
   private readonly root: Scope;
   private readonly aliases = new Map<string, string>();
   private readonly errors: string[] = [];
@@ -228,7 +232,10 @@ export class TemplateRenderer {
     const syntax = tagSyntax(options);
     this.opening = syntax.opening;
     this.tagPattern = syntax.pattern;
-    this.strict = options.strict ?? false;
+    this.evaluation = {
+      strict: options.strict ?? false,
+      allowStringPatterns: options.allowStringPatterns ?? false,
+    };
     const jsContext = new Scope(
       options.additionalJsContext ?? {},
       undefined,
@@ -293,7 +300,12 @@ export class TemplateRenderer {
           .map((t) => t.textContent)
           .join('');
         for (const match of text.matchAll(this.tagPattern)) {
-          const command = parseCommand(match[1], match[0]);
+          let command: ParsedCommand;
+          try {
+            command = parseCommand(match[1], match[0]);
+          } catch {
+            continue; // reported where the tag is rendered
+          }
           if (command.type === 'ALIAS') {
             this.aliases.set(command.name, command.code);
           }
@@ -325,7 +337,7 @@ export class TemplateRenderer {
       }
     });
 
-    return { tokens, controlOnly };
+    return { tokens, controlOnly, first: this.childElements(body, 'a:p')[0] };
   }
 
   /**
@@ -409,11 +421,26 @@ export class TemplateRenderer {
   }
 
   private parseDirective(inner: string, tag: string): Directive {
-    const resolved = resolveAlias(inner, this.aliases, tag);
-    const command = parseCommand(
-      this.options.fixSmartQuotes ? fixSmartQuotes(resolved) : resolved,
-      tag,
-    );
+    let command: ParsedCommand;
+    try {
+      const resolved = resolveAlias(inner, this.aliases, tag);
+      command = parseCommand(
+        this.options.fixSmartQuotes ? fixSmartQuotes(resolved) : resolved,
+        tag,
+      );
+    } catch (error) {
+      // An empty tag or unknown alias is handled like a syntax error
+      if (!this.handlesErrors) throw this.tagged(error, tag);
+      return {
+        type: 'insert',
+        expr: {
+          source: inner,
+          evaluate: () => {
+            throw error;
+          },
+        },
+      };
+    }
     const compile = (source: string) => this.compile(source, tag);
 
     switch (command.type) {
@@ -484,7 +511,12 @@ export class TemplateRenderer {
 
   private tagged(error: unknown, tag: string): Error {
     const message = error instanceof Error ? error.message : String(error);
-    return new TemplateRenderError(`${tag}: ${message}`);
+    return new TemplateRenderError(this.withTag(tag, message));
+  }
+
+  /** Some messages name the tag themselves. */
+  private withTag(tag: string, message: string): string {
+    return message.includes(tag) ? message : `${tag}: ${message}`;
   }
 
   /**
@@ -503,7 +535,7 @@ export class TemplateRenderer {
         return this.options.errorHandler(err, tag);
       }
       if (this.options.failFast === false) {
-        this.errors.push(`${tag}: ${err.message}`);
+        this.errors.push(this.withTag(tag, err.message));
         return undefined;
       }
       throw this.tagged(err, tag);
@@ -614,7 +646,7 @@ export class TemplateRenderer {
           const pass =
             !branch.expr ||
             (await this.value(branch.tag, () =>
-              branch.expr.evaluate(scope, this.strict),
+              branch.expr.evaluate(scope, this.evaluation),
             ));
           if (pass) {
             await this.evaluate(branch.body, scope, emit);
@@ -623,7 +655,7 @@ export class TemplateRenderer {
         }
       } else {
         const value = await this.value(block.tag, () => {
-          const list = block.expr.evaluate(scope, this.strict);
+          const list = block.expr.evaluate(scope, this.evaluation);
           if (isThenable(list))
             return list.then((v) => this.toList(v, block.expr));
           return this.toList(list, block.expr);
@@ -666,7 +698,10 @@ export class TemplateRenderer {
     const first = sourceParagraphs[0];
     if (!first) return;
 
-    const paragraphs: OutputParagraph[] = [{ source: first, nodes: [] }];
+    // The source paragraph, not its clone in a repeated table row: that is
+    // the one `controlOnly` knows.
+    const firstSource = bodyTokens.first ?? first;
+    const paragraphs: OutputParagraph[] = [{ source: firstSource, nodes: [] }];
     const current = () => paragraphs[paragraphs.length - 1];
 
     await this.evaluate(blocks, scope, async (token, tokenScope) => {
@@ -695,7 +730,7 @@ export class TemplateRenderer {
         ),
     );
     // A text body needs at least one paragraph.
-    if (!kept.length) kept = [{ source: first, nodes: [] }];
+    if (!kept.length) kept = [{ source: firstSource, nodes: [] }];
 
     sourceParagraphs.forEach((p) => body.removeChild(p));
     kept.forEach((p) => body.appendChild(p.raw ?? this.createParagraph(p)));
@@ -710,12 +745,12 @@ export class TemplateRenderer {
     const { directive, tag, run } = token;
     const current = paragraphs[paragraphs.length - 1];
     const evaluate = (expr: Expr) =>
-      this.value(tag, () => expr.evaluate(scope, this.strict));
+      this.value(tag, () => expr.evaluate(scope, this.evaluation));
 
     switch (directive.type) {
       case 'insert': {
         const value = await this.value(tag, async () => {
-          const result = await directive.expr.evaluate(scope, this.strict);
+          const result = await directive.expr.evaluate(scope, this.evaluation);
           if (
             this.options.rejectNullish &&
             (result === null || result === undefined)
@@ -986,6 +1021,9 @@ export class TemplateRenderer {
 
     rows.forEach((row) => {
       const openers: RowToken[] = [];
+      // Closers before the row's first opener end a block from an earlier
+      // row; they must not close the block this row opens.
+      const leading: RowToken[] = [];
       const closers: RowToken[] = [];
       let hasContent = false;
 
@@ -994,11 +1032,14 @@ export class TemplateRenderer {
         if (!body) return undefined;
         const bodyTokens = this.tokenizeBody(body);
         const rowLevel = this.extractRowLevelTags(bodyTokens.tokens);
+        rowLevel.closers.forEach((t) =>
+          (openers.length ? closers : leading).push({
+            tag: t.tag,
+            directive: t.directive,
+          }),
+        );
         rowLevel.openers.forEach((t) =>
           openers.push({ tag: t.tag, directive: t.directive }),
-        );
-        rowLevel.closers.forEach((t) =>
-          closers.push({ tag: t.tag, directive: t.directive }),
         );
         const extracted = new Set<TextToken>([
           ...rowLevel.openers,
@@ -1016,8 +1057,10 @@ export class TemplateRenderer {
         return bodyTokens;
       });
 
+      // Without an opener, all closers end blocks this row still belongs to
+      if (!openers.length) closers.push(...leading.splice(0));
       const isControlRow = !hasContent && (openers.length || closers.length);
-      rowTokens.push(...openers);
+      rowTokens.push(...leading, ...openers);
       if (!isControlRow) rowTokens.push({ row, cells });
       rowTokens.push(...closers);
     });

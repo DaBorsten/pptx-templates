@@ -11,6 +11,9 @@ export type ParsedCommand = {
 
 const IDENT = '[\\p{L}_$][\\p{L}\\p{N}_$]*';
 
+/** An operator that needs a value before it: no command's code starts so. */
+const CONTINUES_EXPRESSION = /^(?:[+\-*/%<>=&|?:.,)\]]|!=)/;
+
 /**
  * `{{each:row}}`: a marker for `modify.setTable`'s `expand` (nested
  * tables), not a template command. It is never a valid expression, so
@@ -76,14 +79,16 @@ export const parseCommand = (inner: string, tag: string): ParsedCommand => {
   ) {
     return { type: 'ALIAS', name: m[1], code: m[2].trim() };
   }
-  if ((m = /^HTML\s+([\s\S]+)$/i.exec(content))) {
-    return { type: 'HTML', code: m[1].trim() };
-  }
-  if ((m = /^LINK\s+([\s\S]+)$/i.exec(content))) {
-    return { type: 'LINK', code: m[1].trim() };
-  }
-  if ((m = /^IMAGE\s+([\s\S]+)$/i.exec(content))) {
-    return { type: 'IMAGE', code: m[1].trim() };
+  // `{{link + 1}}`, `{{image ? 'a' : 'b'}}`: data called like a command. What
+  // follows continues an expression, so the tag is an insertion.
+  if (
+    (m = /^(HTML|LINK|IMAGE)\s+([\s\S]+)$/i.exec(content)) &&
+    !CONTINUES_EXPRESSION.test(m[2])
+  ) {
+    return {
+      type: m[1].toUpperCase() as 'HTML' | 'LINK' | 'IMAGE',
+      code: m[2].trim(),
+    };
   }
   if ((m = /^(?:=|INS\s)([\s\S]+)$/i.exec(content))) {
     return { type: 'INS', code: m[1].trim() };

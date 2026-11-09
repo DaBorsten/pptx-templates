@@ -378,3 +378,59 @@ describe('CLI', () => {
     expect((await run('lint', '--help')).code).toBe(0);
   });
 });
+
+test('broken relationships and schema refs do not stop the linter', async () => {
+  const noTarget =
+    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+    '<Relationship Id="rId1" Type="x"/></Relationships>';
+  expect(
+    await lint([shape('T', [['{{a.b}}']])], undefined, {
+      'ppt/slides/_rels/slide1.xml.rels': noTarget,
+    }),
+  ).toEqual([]);
+
+  // '%E0%A4%A' is not a valid %-escape; such a ref decides nothing
+  expect(
+    await lint([shape('T', [['{{a.b}}']])], {
+      schema: { type: 'object', properties: { a: { $ref: '#/%E0%A4%A' } } },
+    }),
+  ).toEqual([]);
+});
+
+describe('CLI input from files', () => {
+  const run = async (...args: string[]) => {
+    let stdout = '';
+    let stderr = '';
+    const code = await runCli(args, {
+      stdout: (t) => (stdout += t),
+      stderr: (t) => (stderr += t),
+    });
+    return { code, stdout, stderr };
+  };
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pptx-lint-input-'));
+
+  test('control characters from the .pptx do not reach the terminal', async () => {
+    const evil = path.join(dir, 'evil.pptx');
+    // ESC [2J would clear the screen; U+009B is the one-character CSI
+    fs.writeFileSync(
+      evil,
+      await deck([shape('Evil&#27;[2J', [['{{IF a\u009b2K}}']])]),
+    );
+    const { code, stdout } = await run('lint', evil);
+    expect(code).toBe(1);
+    expect(stdout).not.toContain('\u001b');
+    expect(stdout).not.toContain('\u009b');
+    expect(stdout).toContain('slide 1 › "Evil [2J"');
+    expect(stdout).toContain('tag: {{IF a 2K}}');
+  });
+
+  test('--data and --schema need a JSON object', async () => {
+    const file = path.join(dir, 'null.json');
+    fs.writeFileSync(file, 'null');
+    for (const option of ['--data', '--schema']) {
+      const { code, stderr } = await run('lint', 'deck.pptx', option, file);
+      expect(code).toBe(2);
+      expect(stderr).toContain('expected a JSON object');
+    }
+  });
+});
