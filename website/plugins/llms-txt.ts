@@ -58,6 +58,9 @@ const normalizeBody = (raw: string, title: string): string => {
   return body.replace(/\]\((\.\/[^)#]+)\/index\.md(#[^)]*)?\)/g, ']($1.md$2)');
 };
 
+const escapeAttr = (value: string): string =>
+  value.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+
 // Sidebar ids in display order (categories contribute their link doc first).
 const flattenSidebarIds = (items: SidebarItem[]): string[] =>
   items.flatMap((item) => {
@@ -72,9 +75,28 @@ const flattenSidebarIds = (items: SidebarItem[]): string[] =>
     return [];
   });
 
-export default function llmsTxtPlugin(context: LoadContext): Plugin<undefined> {
+export default function llmsTxtPlugin(context: LoadContext): Plugin {
   return {
     name: 'llms-txt',
+
+    // site-wide pointer to the AI index (the per-page Markdown twin link is
+    // added in postBuild, where each page's route is known)
+    injectHtmlTags() {
+      const { siteConfig, baseUrl } = context;
+      return {
+        headTags: [
+          {
+            tagName: 'link',
+            attributes: {
+              rel: 'alternate',
+              type: 'text/plain',
+              title: 'llms.txt',
+              href: `${siteConfig.url}${baseUrl}llms.txt`,
+            },
+          },
+        ],
+      };
+    },
 
     async postBuild({ outDir, siteConfig, baseUrl, plugins }) {
       const docsPlugin = plugins.find(
@@ -108,7 +130,9 @@ export default function llmsTxtPlugin(context: LoadContext): Plugin<undefined> {
           'utf-8',
         );
 
-      // 1 — a Markdown twin for every page, guides and API reference alike
+      // 1 — a Markdown twin for every page, guides and API reference alike,
+      // advertised in the page's <head> so an agent landing on the HTML
+      // finds it without knowing the `.md` convention
       for (const doc of version.docs) {
         const twinPath = path.join(outDir, twinRelPath(doc));
         fs.mkdirSync(path.dirname(twinPath), { recursive: true });
@@ -116,6 +140,17 @@ export default function llmsTxtPlugin(context: LoadContext): Plugin<undefined> {
           twinPath,
           normalizeBody(rawSource(doc), doc.title) + '\n',
         );
+
+        const htmlPath = path.join(outDir, `${routeOf(doc) || 'index'}.html`);
+        if (!fs.existsSync(htmlPath)) {
+          throw new Error(`llms-txt: no HTML page for ${doc.source} at ${htmlPath}`);
+        }
+        const html = fs.readFileSync(htmlPath, 'utf-8');
+        const link = `<link rel="alternate" type="text/markdown" href="${escapeAttr(twinUrl(doc))}">`;
+        if (!html.includes('</head>')) {
+          throw new Error(`llms-txt: no </head> in ${htmlPath}`);
+        }
+        fs.writeFileSync(htmlPath, html.replace('</head>', `${link}</head>`));
       }
 
       const docById = new Map(version.docs.map((doc) => [doc.id, doc]));
