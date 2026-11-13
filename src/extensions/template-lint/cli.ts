@@ -98,7 +98,7 @@ export const issueLocation = (issue: TemplateLintIssue): string => {
 
 const ansi = (open: number, close: number) => (text: string) =>
   `\u001b[${open}m${text}\u001b[${close}m`;
-const style = {
+export const style = {
   bold: ansi(1, 22),
   dim: ansi(2, 22),
   underline: ansi(4, 24),
@@ -122,7 +122,7 @@ export const supportsColor = (
  * characters could hide or forge output there. Each becomes one space, so
  * the marker line under a tag still fits (a tab would shift it, too).
  */
-const printable = (text: string): string =>
+export const printable = (text: string): string =>
   // eslint-disable-next-line no-control-regex -- stripping control chars is the point here
   text.replace(/[\u0000-\u001f\u007f-\u009f]/g, ' ');
 
@@ -157,7 +157,7 @@ export const formatIssues = (
   return lines.join('\n') + '\n';
 };
 
-type ParsedArgs = {
+export type ParsedArgs = {
   files: string[];
   options: LintTemplateOptions;
   /** Read on every run, so `--watch` picks up changes. */
@@ -170,7 +170,7 @@ type ParsedArgs = {
   help: boolean;
 };
 
-const parseArgs = (args: string[]): ParsedArgs => {
+const parseArgs = (args: string[], lintOnly: boolean): ParsedArgs => {
   const parsed: ParsedArgs = {
     files: [],
     options: {},
@@ -219,6 +219,7 @@ const parseArgs = (args: string[]): ParsedArgs => {
         parsed.options.closingTag = value();
         break;
       case '--max-warnings': {
+        if (!lintOnly) throw new Error(`Unknown option ${arg}`);
         const n = Number(value());
         if (!Number.isInteger(n) || n < 0) {
           throw new Error('--max-warnings needs a whole number');
@@ -243,7 +244,8 @@ const loadOptions = (parsed: ParsedArgs): LintTemplateOptions => {
   return options;
 };
 
-type LintRun = {
+/** Output of one run over all files, collected rather than printed. */
+export type CommandRun = {
   code: number;
   stdout: string;
   stderr: string;
@@ -251,12 +253,26 @@ type LintRun = {
   unreadable: boolean;
 };
 
-/** Lints all files; output is collected, not printed. */
-const lintFiles = async (
+type RunFiles = (
   parsed: ParsedArgs,
   options: LintTemplateOptions,
   color: boolean,
-): Promise<LintRun> => {
+) => Promise<CommandRun>;
+
+/** The run result for a deck that cannot be read. */
+export const unreadableRun = (
+  file: string,
+  error: unknown,
+  stdout = '',
+): CommandRun => ({
+  code: 2,
+  stdout,
+  stderr: `${printable(`Cannot read ${file}: ${(error as Error).message}`)}\n`,
+  unreadable: true,
+});
+
+/** Lints all files; output is collected, not printed. */
+const lintFiles: RunFiles = async (parsed, options, color) => {
   let errors = 0;
   let warnings = 0;
   let stdout = '';
@@ -266,12 +282,7 @@ const lintFiles = async (
     try {
       ({ issues } = await lintTemplate(file, options));
     } catch (error) {
-      return {
-        code: 2,
-        stdout,
-        stderr: `${printable(`Cannot read ${file}: ${(error as Error).message}`)}\n`,
-        unreadable: true,
-      };
+      return unreadableRun(file, error, stdout);
     }
     report[file] = issues;
     errors += issues.filter((i) => i.severity === 'error').length;
@@ -309,17 +320,18 @@ const delay = (ms: number) =>
 const clock = () => new Date().toTimeString().slice(0, 8);
 
 /**
- * `--watch`: lints, then again after every save of a deck or of the
+ * `--watch`: runs, then again after every save of a deck or of the
  * `--data`/`--schema` file. A file read mid-save (half-written ZIP, briefly
  * missing during PowerPoint's rename, locked) is retried before the error is
  * shown, and a lint error never ends the watch. Resolves with 0 once
  * `io.signal` aborts, and with 2 when watching itself fails (the folder was
  * deleted); without a signal, it runs until the process ends.
  */
-const watchAndLint = (
+const watchAndRun = (
   parsed: ParsedArgs,
   io: CliIO,
   color: boolean,
+  runFiles: RunFiles,
 ): Promise<number> => {
   const timing = { ...DEFAULT_WATCH_TIMING, ...io.watchTiming };
   const { signal } = io;
@@ -329,9 +341,9 @@ const watchAndLint = (
   const dim = (text: string) => (color ? style.dim(text) : text);
   let stopped = false;
 
-  const attempt = async (): Promise<LintRun> => {
+  const attempt = async (): Promise<CommandRun> => {
     try {
-      return await lintFiles(parsed, loadOptions(parsed), color);
+      return await runFiles(parsed, loadOptions(parsed), color);
     } catch (error) {
       // --data/--schema unreadable or invalid JSON
       const stderr = `${(error as Error).message}\n`;
@@ -339,7 +351,7 @@ const watchAndLint = (
     }
   };
 
-  const lintAndReport = async () => {
+  const runAndReport = async () => {
     let result = await attempt();
     for (let i = 0; result.unreadable && i < timing.retries; i++) {
       if (stopped) return;
@@ -364,11 +376,11 @@ const watchAndLint = (
 
     const run = () => {
       if (running) {
-        // Saved while linting: lint once more afterwards
+        // Saved while running: run once more afterwards
         again = true;
         return;
       }
-      running = lintAndReport()
+      running = runAndReport()
         .catch((error) => io.stderr(`${error?.stack ?? error}\n`))
         .finally(() => {
           running = undefined;
@@ -412,43 +424,56 @@ const watchAndLint = (
   });
 };
 
-/** `pptx-templates lint …`; resolves to the exit code. */
-export const runLintCommand = async (
+/**
+ * A command over .pptx files with the shared options (`--data`, `--watch`,
+ * …); resolves to the exit code.
+ */
+export const runFileCommand = async (
   args: string[],
   io: CliIO,
+  command: { usage: string; run: RunFiles; lintOnly?: boolean },
 ): Promise<number> => {
+  const { usage } = command;
   let parsed: ParsedArgs;
   try {
-    parsed = parseArgs(args);
+    parsed = parseArgs(args, !!command.lintOnly);
   } catch (error) {
-    io.stderr(`${(error as Error).message}\n\n${LINT_USAGE}\n`);
+    io.stderr(`${(error as Error).message}\n\n${usage}\n`);
     return 2;
   }
   if (parsed.help) {
-    io.stdout(`${LINT_USAGE}\n`);
+    io.stdout(`${usage}\n`);
     return 0;
   }
   if (!parsed.files.length) {
-    io.stderr(`No .pptx file given.\n\n${LINT_USAGE}\n`);
+    io.stderr(`No .pptx file given.\n\n${usage}\n`);
     return 2;
   }
   if (parsed.watch && parsed.json) {
-    io.stderr(`--watch cannot be combined with --json.\n\n${LINT_USAGE}\n`);
+    io.stderr(`--watch cannot be combined with --json.\n\n${usage}\n`);
     return 2;
   }
 
   const color = parsed.color ?? io.color ?? false;
-  if (parsed.watch) return watchAndLint(parsed, io, color);
+  if (parsed.watch) return watchAndRun(parsed, io, color, command.run);
 
   let options: LintTemplateOptions;
   try {
     options = loadOptions(parsed);
   } catch (error) {
-    io.stderr(`${(error as Error).message}\n\n${LINT_USAGE}\n`);
+    io.stderr(`${(error as Error).message}\n\n${usage}\n`);
     return 2;
   }
-  const result = await lintFiles(parsed, options, color);
+  const result = await command.run(parsed, options, color);
   if (result.stdout) io.stdout(result.stdout);
   if (result.stderr) io.stderr(result.stderr);
   return result.code;
 };
+
+/** `pptx-templates lint …`; resolves to the exit code. */
+export const runLintCommand = (args: string[], io: CliIO): Promise<number> =>
+  runFileCommand(args, io, {
+    usage: LINT_USAGE,
+    run: lintFiles,
+    lintOnly: true,
+  });

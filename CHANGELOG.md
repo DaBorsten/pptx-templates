@@ -6,6 +6,14 @@ semver, with the pre-1.0 convention that **breaking changes bump the minor**.
 
 ## [Unreleased]
 
+### Added
+
+- `templateDataUsage` and `pptx-templates usage`: which fields of the data
+  the tags of a template read, which fields no tag reads, and which read
+  paths are not in the data. Loop variables and EXEC names are traced back
+  to the data (`produkte[].preis`); with several files, the command also
+  lists the fields none of them reads. Supports `--json` and `--watch`.
+
 ## [0.3.1] - 2026-11-13
 
 ### Added

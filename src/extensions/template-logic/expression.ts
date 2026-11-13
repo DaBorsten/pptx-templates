@@ -143,6 +143,12 @@ export type ExpressionReference = {
   path: string[];
   /** Where the name (index 0) and each key of `path` (index i + 1) are. */
   ranges: (SourceRange | undefined)[];
+  /**
+   * The value itself is used: it is the result, passed to a function or put
+   * into a list or object. False where it is only tested or compared
+   * (`a > 1`, `!a`, the condition of `a ? b : c`).
+   */
+  whole?: boolean;
 };
 
 const rangeOf = (token: Token): SourceRange => ({
@@ -235,51 +241,58 @@ export class TemplateExpression {
    * property path after it (`user.name.toUpperCase()` → `user`,
    * `['name', 'toUpperCase']`). Arrow parameters are not included; a path
    * stops at the first computed key (`a[i].b` → `a`, plus `i`).
+   *
+   * @param asValue Whether the expression's result is used as a value
+   * (output, assignment) rather than tested (`IF`); sets `whole`.
    */
-  references(): ExpressionReference[] {
+  references(asValue = true): ExpressionReference[] {
     const refs: ExpressionReference[] = [];
-    const visit = (node: Node, bound: string[]): void => {
+    const visit = (node: Node, bound: string[], whole: boolean): void => {
       const path = staticPath(node);
       if (path) {
-        if (!bound.includes(path.name)) refs.push(path);
+        if (!bound.includes(path.name)) refs.push({ ...path, whole });
         return;
       }
       switch (node.type) {
         case 'member':
-          visit(node.object, bound);
-          visit(node.property, bound);
+          // `a[i]`: which entry is read is open, so all of `a` may be
+          visit(node.object, bound, true);
+          visit(node.property, bound, false);
           return;
         case 'call':
-          visit(node.callee, bound);
-          node.args.forEach((arg) => visit(arg, bound));
+          visit(node.callee, bound, false);
+          node.args.forEach((arg) => visit(arg, bound, true));
           return;
         case 'unary':
-          visit(node.arg, bound);
+          visit(node.arg, bound, false);
           return;
-        case 'binary':
-          visit(node.left, bound);
-          visit(node.right, bound);
+        case 'binary': {
+          // `a || b`, `a ?? b`: the result is one of the operands
+          const passes = ['&&', '||', '??'].includes(node.op) && whole;
+          visit(node.left, bound, passes);
+          visit(node.right, bound, passes);
           return;
+        }
         case 'cond':
-          visit(node.test, bound);
-          visit(node.then, bound);
-          visit(node.else, bound);
+          visit(node.test, bound, false);
+          visit(node.then, bound, whole);
+          visit(node.else, bound, whole);
           return;
         case 'array':
-          node.items.forEach((item) => visit(item, bound));
+          node.items.forEach((item) => visit(item, bound, true));
           return;
         case 'object':
           node.entries.forEach((entry) => {
-            visit(entry.key, bound);
-            visit(entry.value, bound);
+            visit(entry.key, bound, false);
+            visit(entry.value, bound, true);
           });
           return;
         case 'arrow':
-          visit(node.body, [...bound, ...node.params]);
+          visit(node.body, [...bound, ...node.params], true);
           return;
       }
     };
-    visit(this.ast, []);
+    visit(this.ast, [], asValue);
     return refs;
   }
 

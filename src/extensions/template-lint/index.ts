@@ -1,4 +1,4 @@
-export { lintTemplate } from './lint';
+export { lintTemplate, templateDataUsage } from './lint';
 export type {
   JsonSchema,
   LintTemplateOptions,
@@ -7,3 +7,8 @@ export type {
   TemplateLintRule,
   TemplateLintSeverity,
 } from './types';
+export type {
+  DataUsageEntry,
+  DataUsageLocation,
+  TemplateDataUsage,
+} from './usage';

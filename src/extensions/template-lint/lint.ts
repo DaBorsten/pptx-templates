@@ -22,6 +22,11 @@ import {
   TemplateLintResult,
 } from './types';
 import { autocorrectHint } from './hints';
+import {
+  DataUsageLocation,
+  DataUsageRecorder,
+  TemplateDataUsage,
+} from './usage';
 
 /** One stretch of runs: a tag must sit within it (renderer tokenizing). */
 type Segment = { text: string; paragraph: XmlElement; cell?: number };
@@ -33,7 +38,12 @@ type OpenBlock = {
   shape?: string;
   hasElse: boolean;
   vars: [string, Known][];
+  /** Data path of each loop variable (for data usage); undefined: none. */
+  paths: [string, DataPath | undefined][];
 };
+
+/** Keys from the data root; `[]` stands for every entry of a list. */
+type DataPath = string[];
 
 type IssueInput = Omit<TemplateLintIssue, 'part' | 'slide'>;
 
@@ -194,10 +204,20 @@ class TemplateLinter {
   private readonly model: DataModel;
   private readonly seen = new Set<string>();
   private readonly fixQuotes: boolean;
+  /** Names from additionalJsContext: helpers, not data. */
+  private readonly extraNames: Set<string>;
+  private readonly data?: Record<string, unknown>;
+  /** Where the current tag is, for data usage. */
+  private location: DataUsageLocation;
 
-  constructor(options: LintTemplateOptions) {
+  constructor(
+    options: LintTemplateOptions,
+    private readonly usage?: DataUsageRecorder,
+  ) {
     this.syntax = tagSyntax(options);
     this.fixQuotes = options.fixSmartQuotes ?? false;
+    this.data = options.data;
+    this.extraNames = new Set(Object.keys(options.additionalJsContext ?? {}));
     this.model = new DataModel(
       options.data,
       options.schema,
@@ -281,14 +301,18 @@ class TemplateLinter {
     // ALIAS and EXEC names apply to the whole render call: collect up front
     const aliases = new Map<string, string>();
     const execNames = new Set<string>();
+    // Data path behind an EXEC name, set where the EXEC runs
+    const execPaths = new Map<string, DataPath | undefined>();
     allTags.forEach(({ raw, inner }) => {
       try {
         const command = this.parse(inner, aliases, raw);
         if (command.type === 'ALIAS') aliases.set(command.name, command.code);
         if (command.type === 'EXEC') {
-          parseStatements(command.code).forEach(
-            (s) => s.assign && execNames.add(s.assign),
-          );
+          parseStatements(command.code).forEach((s) => {
+            if (!s.assign) return;
+            execNames.add(s.assign);
+            execPaths.set(s.assign, undefined);
+          });
         }
       } catch {
         // reported below, at the tag
@@ -316,6 +340,11 @@ class TemplateLinter {
               range: issue.range ?? { start: 0, end: raw.length },
             });
           this.enterTag(raw);
+          this.location = {
+            part,
+            slide,
+            ...(name !== undefined && { shape: name }),
+          };
           let command: ReturnType<typeof parseCommand>;
           try {
             command = this.parse(inner, aliases, raw);
@@ -334,12 +363,25 @@ class TemplateLinter {
           }
 
           const loopVars = new Map(stack.flatMap((block) => block.vars));
-          const check = (code: string) =>
-            this.checkExpression(code, loopVars, execNames, tagReport);
+          const paths = new Map([
+            ...execPaths,
+            ...stack.flatMap((block) => block.paths),
+          ]);
+          /** `asValue`: output or passed on, rather than tested. */
+          const check = (code: string, asValue = true) => {
+            const expr = this.checkExpression(
+              code,
+              loopVars,
+              execNames,
+              tagReport,
+            );
+            if (expr) this.recordUsage(expr, paths, asValue);
+            return expr;
+          };
 
           switch (command.type) {
             case 'IF': {
-              check(command.code);
+              check(command.code, false);
               stack.push({
                 type: 'IF',
                 tag: raw,
@@ -347,11 +389,14 @@ class TemplateLinter {
                 shape: name,
                 hasElse: false,
                 vars: [],
+                paths: [],
               });
               break;
             }
             case 'FOR': {
-              const expr = check(command.code);
+              const expr = check(command.code, false);
+              const listPath = this.dataPathOf(expr?.path(), paths);
+              const entryPath = listPath && [...listPath, '[]'];
               const element = this.loopElement(expr, loopVars, execNames);
               if (!element) {
                 tagReport({
@@ -376,12 +421,17 @@ class TemplateLinter {
                   [`$${command.name}`, known],
                   ['$idx', { kind: 'value', value: 0 }],
                 ],
+                paths: [
+                  [command.name, entryPath],
+                  [`$${command.name}`, entryPath],
+                  ['$idx', undefined],
+                ],
               });
               break;
             }
             case 'ELSE-IF':
             case 'ELSE': {
-              if (command.type === 'ELSE-IF') check(command.code);
+              if (command.type === 'ELSE-IF') check(command.code, false);
               const top = stack[stack.length - 1];
               if (top?.type !== 'IF') {
                 tagReport({
@@ -425,14 +475,22 @@ class TemplateLinter {
             }
             case 'EXEC': {
               try {
-                parseStatements(command.code).forEach((statement) =>
+                parseStatements(command.code).forEach((statement) => {
                   this.checkReferences(
                     statement.expr,
                     loopVars,
                     execNames,
                     tagReport,
-                  ),
-                );
+                  );
+                  // `x = kunde.name`: what x reads, kunde.name provides
+                  const alias = statement.assign && statement.expr.path();
+                  this.recordUsage(statement.expr, paths, !alias);
+                  if (statement.assign) {
+                    const target = this.dataPathOf(alias || undefined, paths);
+                    execPaths.set(statement.assign, target);
+                    paths.set(statement.assign, target);
+                  }
+                });
               } catch (error) {
                 this.syntaxError(command.code, error, tagReport);
               }
@@ -598,6 +656,34 @@ class TemplateLinter {
     });
   }
 
+  /** The data path a reference reads; undefined if it is not data. */
+  private dataPathOf(
+    ref: { name: string; path: string[] } | undefined,
+    paths: Map<string, DataPath | undefined>,
+  ): DataPath | undefined {
+    if (!ref) return undefined;
+    if (paths.has(ref.name)) {
+      const base = paths.get(ref.name);
+      return base && [...base, ...ref.path];
+    }
+    const inData =
+      !!this.data && Object.prototype.hasOwnProperty.call(this.data, ref.name);
+    if (this.extraNames.has(ref.name) && !inData) return undefined;
+    return [ref.name, ...ref.path];
+  }
+
+  private recordUsage(
+    expr: TemplateExpression,
+    paths: Map<string, DataPath | undefined>,
+    asValue: boolean,
+  ): void {
+    if (!this.usage) return;
+    for (const ref of expr.references(asValue)) {
+      const path = this.dataPathOf(ref, paths);
+      if (path) this.usage.record(path, !!ref.whole, this.location);
+    }
+  }
+
   private lookup(
     name: string,
     loopVars: Map<string, Known>,
@@ -712,9 +798,45 @@ export const lintTemplate = async (
   pptx: string | Buffer | Uint8Array | ArrayBuffer,
   options: LintTemplateOptions = {},
 ): Promise<TemplateLintResult> => {
+  const issues = (await runLinter(pptx, options)).issues;
+  return {
+    issues,
+    errorCount: issues.filter((i) => i.severity === 'error').length,
+    warningCount: issues.filter((i) => i.severity === 'warning').length,
+  };
+};
+
+/**
+ * Which fields of the data the tags of a .pptx read, and - with example
+ * `data` or a JSON `schema` - which fields no tag reads and which read
+ * paths do not exist. Loop variables and EXEC names are traced back to the
+ * data (`{{FOR p IN produkte}}…{{p.preis}}` reads `produkte[].preis`).
+ *
+ * @param pptx Path to a .pptx file or its contents.
+ */
+export const templateDataUsage = async (
+  pptx: string | Buffer | Uint8Array | ArrayBuffer,
+  options: LintTemplateOptions = {},
+): Promise<TemplateDataUsage> => collectDataUsage([pptx], options);
+
+/** Data usage of several decks together: `unused` is what none of them reads. */
+export const collectDataUsage = async (
+  decks: (string | Buffer | Uint8Array | ArrayBuffer)[],
+  options: LintTemplateOptions = {},
+): Promise<TemplateDataUsage> => {
+  const usage = new DataUsageRecorder(options.data, options.schema);
+  for (const pptx of decks) await runLinter(pptx, options, usage);
+  return usage.result();
+};
+
+const runLinter = async (
+  pptx: string | Buffer | Uint8Array | ArrayBuffer,
+  options: LintTemplateOptions,
+  usage?: DataUsageRecorder,
+): Promise<TemplateLinter> => {
   const content = typeof pptx === 'string' ? fs.readFileSync(pptx) : pptx;
   const zip = await JSZip.loadAsync(content);
-  const linter = new TemplateLinter(options);
+  const linter = new TemplateLinter(options, usage);
 
   const slides = Object.keys(zip.files)
     .map((name) => ({
@@ -761,11 +883,5 @@ export const lintTemplate = async (
     );
     linter.lintOtherPart(name, slideOfPart.get(name), texts);
   }
-
-  const issues = linter.issues;
-  return {
-    issues,
-    errorCount: issues.filter((i) => i.severity === 'error').length,
-    warningCount: issues.filter((i) => i.severity === 'warning').length,
-  };
+  return linter;
 };
