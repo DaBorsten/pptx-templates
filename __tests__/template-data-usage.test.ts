@@ -369,7 +369,10 @@ describe('CLI', () => {
     expect(report.files[first].missing).toEqual([
       { path: 'kunde.nmae', locations: [{ part: 'ppt/slides/slide1.xml', slide: 1, shape: 'Titel' }] },
     ]);
-    expect(report.unusedInAll).toContain('intern');
+    expect(report.unusedInAll).toEqual([
+      expect.objectContaining({ data: dataFile, files: [first] }),
+    ]);
+    expect(report.unusedInAll[0].unused).toContain('intern');
   });
 
   test('without data, says that unused fields need it', async () => {

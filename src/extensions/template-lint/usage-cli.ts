@@ -2,17 +2,27 @@ import {
   CliIO,
   CommandRun,
   issueLocation,
+  Job,
   ParsedArgs,
   printable,
   runFileCommand,
   style,
   unreadableRun,
 } from './cli';
+import { CONFIG_FILE } from './config';
 import { collectDataUsage } from './lint';
-import { LintTemplateOptions } from './types';
 import { DataUsageEntry, DataUsageLocation, TemplateDataUsage } from './usage';
 
+/** Decks that share their data: "unused" across them makes sense. */
+type DataGroup = {
+  data?: string;
+  schema?: string;
+  files: string[];
+  unused: string[];
+};
+
 export const USAGE_USAGE = `Usage: pptx-templates usage <file.pptx>... [options]
+       pptx-templates usage [--config <file.json>] [options]
 
 Shows which fields of the data the {{…}} tags of PowerPoint templates read,
 which fields no tag reads, and which read paths are not in the data.
@@ -20,6 +30,8 @@ which fields no tag reads, and which read paths are not in the data.
 Options:
   --data <file.json>        Example data to compare with
   --schema <file.json>      JSON Schema of the data (alternative to --data)
+  -c, --config <file.json>  Decks and their data from a config file; without
+                            files, ${CONFIG_FILE} in this folder is used
   --opening-tag <text>      Tag start (default: {{)
   --closing-tag <text>      Tag end (default: }})
   --fix-smart-quotes        Accept typographic quotes, like renderTemplate's
@@ -87,55 +99,79 @@ export const formatUsage = (
   return text;
 };
 
+const hasData = (job: Job) => !!(job.options.data || job.options.schema);
+
 const usageFiles = async (
+  jobs: Job[],
   parsed: ParsedArgs,
-  options: LintTemplateOptions,
   color: boolean,
 ): Promise<CommandRun> => {
-  const hasData = !!(options.data || options.schema);
   const paint = (fn: (t: string) => string, text: string) =>
     color ? fn(text) : text;
   const files: Record<string, TemplateDataUsage> = {};
   let stdout = '';
-  for (const file of parsed.files) {
+  for (const job of jobs) {
     try {
-      files[file] = await collectDataUsage([file], options);
+      files[job.file] = await collectDataUsage([job.file], job.options);
     } catch (error) {
-      return unreadableRun(file, error, stdout);
+      return unreadableRun(job.file, error, stdout);
     }
     if (!parsed.json) {
       stdout +=
-        (stdout ? '\n' : '') + formatUsage(file, files[file], hasData, color);
-    }
-  }
-  // The files were readable a moment ago; read them once more together
-  let unusedInAll: string[] | undefined;
-  if (hasData) {
-    try {
-      unusedInAll = (await collectDataUsage(parsed.files, options)).unused;
-    } catch (error) {
-      return unreadableRun(parsed.files.join(', '), error, stdout);
+        (stdout ? '\n' : '') +
+        formatUsage(job.file, files[job.file], hasData(job), color);
     }
   }
 
+  // Decks with the same data and schema: what none of them reads
+  const byData = new Map<string, Job[]>();
+  for (const job of jobs.filter(hasData)) {
+    const key = JSON.stringify([job.dataFile, job.schemaFile]);
+    if (!byData.has(key)) byData.set(key, []);
+    byData.get(key).push(job);
+  }
+  const groups: DataGroup[] = [];
+  for (const members of byData.values()) {
+    const decks = members.map((job) => job.file);
+    let unused: string[];
+    try {
+      // The decks were readable a moment ago; read them once more together
+      unused = (await collectDataUsage(decks, members[0].options)).unused;
+    } catch (error) {
+      return unreadableRun(decks.join(', '), error, stdout);
+    }
+    groups.push({
+      ...(members[0].dataFile && { data: members[0].dataFile }),
+      ...(members[0].schemaFile && { schema: members[0].schemaFile }),
+      files: decks,
+      unused,
+    });
+  }
+
   if (parsed.json) {
-    stdout =
-      JSON.stringify({ files, ...(hasData && { unusedInAll }) }, null, 2) +
-      '\n';
-  } else if (!hasData) {
+    stdout = JSON.stringify({ files, unusedInAll: groups }, null, 2) + '\n';
+  } else if (!groups.length) {
     stdout += `\n${paint(style.dim, 'Pass --data or --schema to see unused fields.')}\n`;
-  } else if (parsed.files.length > 1) {
-    stdout +=
-      '\n' +
-      (unusedInAll.length
-        ? section(
-            `Unused in all ${parsed.files.length} file(s)`,
-            unusedInAll,
-            '',
-            paint,
-            style.yellow,
-          )
-        : `Every field is used in at least one of the ${parsed.files.length} file(s)\n`);
+  } else {
+    for (const group of groups.filter((g) => g.files.length > 1)) {
+      // Name the data only where decks use different data
+      const source =
+        byData.size > 1
+          ? ` using ${[group.data, group.schema].filter(Boolean).join(' + ')}`
+          : '';
+      const n = group.files.length;
+      stdout +=
+        '\n' +
+        (group.unused.length
+          ? section(
+              `Unused in all ${n} file(s)${source}`,
+              group.unused,
+              '',
+              paint,
+              style.yellow,
+            )
+          : `Every field is used in at least one of the ${n} file(s)${source}\n`);
+    }
   }
   return { code: 0, stdout, stderr: '', unreadable: false };
 };
