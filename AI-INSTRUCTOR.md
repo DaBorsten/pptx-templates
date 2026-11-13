@@ -1080,6 +1080,28 @@ The exit code is `0` without errors, `1` with errors (or more warnings than
 command can run in CI. `--opening-tag` and `--closing-tag` set other
 delimiters.
 
+### Watch mode
+
+```bash
+npx pptx-templates lint deck.pptx --data example.json --watch
+```
+
+With `--watch` (or `-w`), the command lints once and then again every time
+you save a deck, or the `--data`/`--schema` file. The deck can stay open in
+PowerPoint: edit, press Ctrl+S, and the terminal shows the new result. Stop
+with Ctrl+C.
+
+- PowerPoint saves into a temporary file and renames it over the deck, which
+  fires several file events. The watch waits until they have settled, then
+  lints once.
+- A file read in the middle of a save (an incomplete ZIP, a JSON file still
+  being written) is read again a few times before an error shows. Errors
+  never end the watch: fix the file, save, and it lints again.
+- Only the named files count. PowerPoint's `~$deck.pptx` owner file and other
+  files in the folder are ignored.
+- In a terminal, the screen is cleared before each run.
+- `--watch` cannot be combined with `--json`.
+
 ## What it checks
 
 | Rule | Severity | Finds |
