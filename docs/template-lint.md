@@ -85,20 +85,20 @@ matches:
 ```text
 pptx-templates.json
 data/
-  first_page_de.json      first_page_en.json
-  projects_page_de.json   projects_page_en.json
+  cover_de.json    cover_en.json
+  report_de.json   report_en.json
 customer-a/
-  first_page_de.pptx      first_page_en.pptx
-  projects_page_de.pptx   projects_page_en.pptx
+  cover_de.pptx    cover_en.pptx
+  report_de.pptx   report_en.pptx
 customer-b/
-  first_page_de.pptx      first_page_en.pptx
+  cover_de.pptx    cover_en.pptx
 ```
 
 ```json
 {
   "templates": [
-    { "files": "{folder}/first_page_{lang}.pptx", "data": "data/first_page_{lang}.json" },
-    { "files": "{folder}/projects_page_{lang}.pptx", "data": "data/projects_page_{lang}.json" }
+    { "files": "{customer}/cover_{lang}.pptx", "data": "data/cover_{lang}.json" },
+    { "files": "{customer}/report_{lang}.pptx", "data": "data/report_{lang}.json" }
   ]
 }
 ```
@@ -112,12 +112,12 @@ npx pptx-templates lint --config other.json
 - `files` is a pattern or a list of patterns, relative to the config file.
   `*` matches any part of a name, `**` any number of folders, and
   `{name}` matches like `*` and remembers the part: `data` and `schema`
-  fill it in. Above, `customer-a/first_page_en.pptx` gets
-  `data/first_page_en.json`.
-- A pattern that matches no file is fine (customer-b has no projects page);
+  fill it in. Above, `customer-a/cover_en.pptx` gets
+  `data/cover_en.json`.
+- A pattern that matches no file is fine (customer-b has no report);
   the command notes it. If no pattern matches anything, that is an error.
 - Data next to the decks works the same:
-  `{ "files": "{folder}/deck_{lang}.pptx", "data": "{folder}/data_{lang}.json" }`.
+  `{ "files": "{customer}/deck_{lang}.pptx", "data": "{customer}/data_{lang}.json" }`.
 - A deck that two entries match is an error, so the data is never ambiguous.
 - Optional top-level `openingTag`, `closingTag` and `fixSmartQuotes` apply to
   all decks; the same options on the command line win.
@@ -224,7 +224,7 @@ On the command line:
 
 ```bash
 npx pptx-templates usage templates/Offer.pptx --data example.json
-npx pptx-templates usage first_page_de.pptx first_page_en.pptx --schema data.schema.json
+npx pptx-templates usage cover_de.pptx cover_en.pptx --schema data.schema.json
 ```
 
 ```text

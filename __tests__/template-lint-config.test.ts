@@ -6,8 +6,8 @@ import path from 'path';
 import { deck, shape } from './helpers/lint-deck';
 
 /**
- * The layout from a real project: per folder a first page and a projects
- * page, each in German and English; some folders have no projects page.
+ * A typical layout: per customer folder a cover and a report deck,
+ * each in German and English; some customers have no report.
  * Each deck kind and language has its own example data.
  */
 const makeProject = async () => {
@@ -24,24 +24,24 @@ const makeProject = async () => {
     de: await deck([shape('Liste', [['{{FOR p IN projekte}}{{p.name}}{{END-FOR}}']])]),
     en: await deck([shape('List', [['{{FOR p IN projects}}{{p.name}}{{END-FOR}}']])]),
   };
-  for (const folder of ['ordner1', 'ordner2']) {
-    write(`${folder}/first_page_de.pptx`, first.de);
-    write(`${folder}/first_page_en.pptx`, first.en);
+  for (const folder of ['customer-a', 'customer-b']) {
+    write(`${folder}/cover_de.pptx`, first.de);
+    write(`${folder}/cover_en.pptx`, first.en);
   }
-  write('ordner1/projects_page_de.pptx', projects.de);
-  write('ordner1/projects_page_en.pptx', projects.en);
+  write('customer-a/report_de.pptx', projects.de);
+  write('customer-a/report_en.pptx', projects.en);
   // PowerPoint's owner file while a deck is open: never a template
-  write('ordner1/~$first_page_de.pptx', 'owner');
+  write('customer-a/~$cover_de.pptx', 'owner');
 
-  write('data/first_page_de.json', JSON.stringify({ titel: 'Hallo', intern: 1 }));
-  write('data/first_page_en.json', JSON.stringify({ title: 'Hello' }));
-  write('data/projects_page_de.json', JSON.stringify({ projekte: [{ name: 'A', jahr: 1 }] }));
-  write('data/projects_page_en.json', JSON.stringify({ projects: [{ name: 'A' }] }));
+  write('data/cover_de.json', JSON.stringify({ titel: 'Hallo', intern: 1 }));
+  write('data/cover_en.json', JSON.stringify({ title: 'Hello' }));
+  write('data/report_de.json', JSON.stringify({ projekte: [{ name: 'A', jahr: 1 }] }));
+  write('data/report_en.json', JSON.stringify({ projects: [{ name: 'A' }] }));
 
   const config = {
     templates: [
-      { files: '{ordner}/first_page_{lang}.pptx', data: 'data/first_page_{lang}.json' },
-      { files: '{ordner}/projects_page_{lang}.pptx', data: 'data/projects_page_{lang}.json' },
+      { files: '{customer}/cover_{lang}.pptx', data: 'data/cover_{lang}.json' },
+      { files: '{customer}/report_{lang}.pptx', data: 'data/report_{lang}.json' },
     ],
   };
   const configFile = path.join(dir, 'pptx-templates.json');
@@ -68,13 +68,13 @@ describe('resolveConfig', () => {
     const { jobs, unmatched } = resolveConfig(readConfig(configFile), configFile);
     const rel = (p: string) => path.relative(dir, p).split(path.sep).join('/');
     expect(jobs.map((j) => [rel(j.file), rel(j.dataFile)])).toEqual([
-      ['ordner1/first_page_de.pptx', 'data/first_page_de.json'],
-      ['ordner1/first_page_en.pptx', 'data/first_page_en.json'],
-      ['ordner1/projects_page_de.pptx', 'data/projects_page_de.json'],
-      ['ordner1/projects_page_en.pptx', 'data/projects_page_en.json'],
-      // ordner2 has no projects page: not an error
-      ['ordner2/first_page_de.pptx', 'data/first_page_de.json'],
-      ['ordner2/first_page_en.pptx', 'data/first_page_en.json'],
+      ['customer-a/cover_de.pptx', 'data/cover_de.json'],
+      ['customer-a/cover_en.pptx', 'data/cover_en.json'],
+      ['customer-a/report_de.pptx', 'data/report_de.json'],
+      ['customer-a/report_en.pptx', 'data/report_en.json'],
+      // customer-b has no report: not an error
+      ['customer-b/cover_de.pptx', 'data/cover_de.json'],
+      ['customer-b/cover_en.pptx', 'data/cover_en.json'],
     ]);
     expect(unmatched).toEqual([]);
   });
@@ -143,7 +143,7 @@ describe('resolveConfig', () => {
       '"{1x}" is not a valid placeholder name',
     );
     expect(
-      error({ templates: [{ files: 'ordner1/first_page_de.pptx' }, { files: '*/first_page_*.pptx' }] }),
+      error({ templates: [{ files: 'customer-a/cover_de.pptx' }, { files: '*/cover_*.pptx' }] }),
     ).toContain('matches templates[0] and templates[1]');
   });
 });
@@ -151,12 +151,12 @@ describe('resolveConfig', () => {
 describe('lint --config', () => {
   test('lints each deck against its own data', async () => {
     const { dir, configFile, write } = await makeProject();
-    // The German first page uses the English name: only it is wrong
-    write('ordner2/first_page_de.pptx', await deck([shape('Titel', [['{{title}}']])]));
+    // The German cover uses the English name: only it is wrong
+    write('customer-b/cover_de.pptx', await deck([shape('Titel', [['{{title}}']])]));
     const { code, stdout, stderr } = await run('lint', '--config', configFile);
     expect(stderr).toBe('');
     expect(code).toBe(0); // warnings only
-    expect(stdout).toContain(path.join(dir, 'ordner2', 'first_page_de.pptx'));
+    expect(stdout).toContain(path.join(dir, 'customer-b', 'cover_de.pptx'));
     expect(stdout).toContain('"title" is not in the data (did you mean "titel"?)');
     expect(stdout).toContain('1 problem(s): 0 error(s), 1 warning(s)');
   });
@@ -177,7 +177,7 @@ describe('lint --config', () => {
   test('notes patterns that match nothing; nothing at all is an error', async () => {
     const { dir, configFile } = await makeProject();
     writeConfig(configFile, {
-      templates: [{ files: '*/first_page_*.pptx' }, { files: '*/agenda_*.pptx' }],
+      templates: [{ files: '*/cover_*.pptx' }, { files: '*/agenda_*.pptx' }],
     });
     const some = await run('lint', '-c', configFile);
     expect(some.code).toBe(0);
@@ -192,10 +192,10 @@ describe('lint --config', () => {
 
   test('a missing data file is reported', async () => {
     const { dir, configFile } = await makeProject();
-    fs.rmSync(path.join(dir, 'data', 'projects_page_en.json'));
+    fs.rmSync(path.join(dir, 'data', 'report_en.json'));
     const { code, stderr } = await run('lint', '-c', configFile);
     expect(code).toBe(2);
-    expect(stderr).toContain(`Cannot read data ${path.join(dir, 'data', 'projects_page_en.json')}`);
+    expect(stderr).toContain(`Cannot read data ${path.join(dir, 'data', 'report_en.json')}`);
   });
 
   test('--config cannot be combined with files or --data', async () => {
@@ -210,10 +210,10 @@ describe('usage --config', () => {
     const { configFile } = await makeProject();
     const { code, stdout } = await run('usage', '-c', configFile);
     expect(code).toBe(0);
-    // Both German first pages read titel; neither reads intern
-    expect(stdout).toMatch(/Unused in all 2 file\(s\) using \S*first_page_de\.json \(1\)\n {2}intern\n/);
-    // Only one deck per projects data: no "unused in all" for it
-    expect(stdout).not.toContain('projects_page_de.json (');
+    // Both German covers read titel; neither reads intern
+    expect(stdout).toMatch(/Unused in all 2 file\(s\) using \S*cover_de\.json \(1\)\n {2}intern\n/);
+    // Only one deck per report data: no "unused in all" for it
+    expect(stdout).not.toContain('report_de.json (');
     expect(stdout).toContain('Every field is used in at least one of the 2 file(s) using');
   });
 });
@@ -241,14 +241,14 @@ describe('lint --config --watch', () => {
     expect(stdout).toContain('No problems found in 6 file(s)');
 
     // A new folder, then a deck in it
-    fs.mkdirSync(path.join(dir, 'ordner3'));
+    fs.mkdirSync(path.join(dir, 'customer-c'));
     await runs(2);
-    write('ordner3/first_page_en.pptx', first.en);
+    write('customer-c/cover_en.pptx', first.en);
     await runs(3);
     expect(stdout).toContain('No problems found in 7 file(s)');
 
-    // The English data loses "title": the English first pages are wrong now
-    write('data/first_page_en.json', JSON.stringify({ name: 'x' }));
+    // The English data loses "title": the English covers are wrong now
+    write('data/cover_en.json', JSON.stringify({ name: 'x' }));
     await runs(4);
     expect(stdout).toContain('3 problem(s): 0 error(s), 3 warning(s)');
 

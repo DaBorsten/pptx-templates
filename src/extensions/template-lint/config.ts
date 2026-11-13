@@ -10,7 +10,7 @@ export const CONFIG_FILE = 'pptx-templates.json';
  *
  * ```json
  * { "templates": [
- *   { "files": "{folder}/first_page_{lang}.pptx", "data": "data/first_page_{lang}.json" }
+ *   { "files": "{customer}/cover_{lang}.pptx", "data": "data/cover_{lang}.json" }
  * ] }
  * ```
  */

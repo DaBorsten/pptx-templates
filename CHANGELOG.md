@@ -6,6 +6,8 @@ semver, with the pre-1.0 convention that **breaking changes bump the minor**.
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-11-13
+
 ### Added
 
 - `templateDataUsage` and `pptx-templates usage`: which fields of the data
@@ -15,8 +17,8 @@ semver, with the pre-1.0 convention that **breaking changes bump the minor**.
   lists the fields none of them reads. Supports `--json` and `--watch`.
 - Config file `pptx-templates.json` for `lint` and `usage`: file patterns,
   each with its own data or schema. `{name}` placeholders carry parts of
-  the deck path into the data path (`{folder}/first_page_{lang}.pptx` →
-  `data/first_page_{lang}.json`). Without file arguments, the commands read
+  the deck path into the data path (`{customer}/cover_{lang}.pptx` →
+  `data/cover_{lang}.json`). Without file arguments, the commands read
   `pptx-templates.json` from the current folder; `--watch` picks up new
   decks and folders that match.
 
@@ -199,7 +201,8 @@ for that history.
   into one `.png` part. The fallback now gets the same placeholder PNG that
   pptxgenjs 3.12 wrote.
 
-[Unreleased]: https://github.com/DaBorsten/pptx-templates/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/DaBorsten/pptx-templates/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/DaBorsten/pptx-templates/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/DaBorsten/pptx-templates/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/DaBorsten/pptx-templates/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/DaBorsten/pptx-templates/compare/v0.2.0...v0.2.1
