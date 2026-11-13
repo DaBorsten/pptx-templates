@@ -89,6 +89,21 @@ describe('resolveConfig', () => {
     expect(jobs.map((j) => path.basename(j.file))).toEqual(['deck_de.pptx']);
   });
 
+  test('characters with a regex meaning in names are literal text', async () => {
+    const { dir, write } = await makeProject();
+    // Only characters every file system allows (no ? or \ on Windows)
+    const names = ['deck (1)+[a]^$.pptx', 'v1.2-final.pptx'];
+    names.forEach((name) => write(`lit/${name}`, 'x'));
+    // Look-alikes that a regex without escaping would match
+    write('lit/deck 1+a^.pptx', 'x');
+    write('lit/v1x2-finalxpptx', 'x');
+    const file = path.join(dir, 'c.json');
+    writeConfig(file, { templates: [{ files: names.map((n) => `lit/${n}`) }] });
+    const { jobs, unmatched } = resolveConfig(readConfig(file), file);
+    expect(jobs.map((j) => path.basename(j.file)).sort()).toEqual([...names].sort());
+    expect(unmatched).toEqual([]);
+  });
+
   test('** matches any number of folders; hidden folders are skipped', async () => {
     const { dir, write } = await makeProject();
     write('a/b/c/deep.pptx', 'x');

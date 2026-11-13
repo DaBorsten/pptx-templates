@@ -149,7 +149,10 @@ export const readConfig = (file: string): TemplatesConfig => {
   return top as TemplatesConfig;
 };
 
-const escapeRegExp = (text: string) => text.replace(/[.+^$()|[\]\\]/g, '\\$&');
+/** Every character with a meaning in a regex, as literal text. */
+const escapeRegExp = (text: string) =>
+  // Not `-` or `/`: literal outside a class, and `\-` is invalid with /u
+  text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /** One path segment of a pattern → a regex over a name, with captures. */
 const segmentRegExp = (segment: string): RegExp => {
@@ -162,7 +165,7 @@ const segmentRegExp = (segment: string): RegExp => {
       // The same name twice in one segment must match the same text
       source += seen.has(name) ? `\\k<${name}>` : `(?<${name}>.+?)`;
       seen.add(name);
-    } else source += escapeRegExp(part).replace(/[{}?]/g, '\\$&');
+    } else source += escapeRegExp(part);
   }
   const caseless =
     process.platform === 'win32' || process.platform === 'darwin';
