@@ -15,8 +15,8 @@ semver, with the pre-1.0 convention that **breaking changes bump the minor**.
   lists the fields none of them reads. Supports `--json` and `--watch`.
 - Config file `pptx-templates.json` for `lint` and `usage`: file patterns,
   each with its own data or schema. `{name}` placeholders carry parts of
-  the deck path into the data path (`{folder}/first_page_{lang}.pptx` →
-  `data/first_page_{lang}.json`). Without file arguments, the commands read
+  the deck path into the data path (`{customer}/cover_{lang}.pptx` →
+  `data/cover_{lang}.json`). Without file arguments, the commands read
   `pptx-templates.json` from the current folder; `--watch` picks up new
   decks and folders that match.
 
