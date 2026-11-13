@@ -2,23 +2,21 @@
 /**
  * `npx pptx-templates <command>` (the package's `bin`). Fork extension.
  */
-import {
-  CliIO,
-  LINT_USAGE,
-  runLintCommand,
-  supportsColor,
-} from '../template-lint/cli';
+import { CliIO, runLintCommand, supportsColor } from '../template-lint/cli';
+import { runUsageCommand } from '../template-lint/usage-cli';
 
-const USAGE = `Usage: pptx-templates <command>
+const USAGE = `Usage: pptx-templates <command> [options]
 
 Commands:
-  lint <file.pptx>...   Check the {{…}} tags of templates
+  lint <file.pptx>...    Check the {{…}} tags of templates
+  usage <file.pptx>...   Show which data fields the tags read, and which not
 
-${LINT_USAGE}`;
+Run pptx-templates <command> --help for the options of a command.`;
 
 export const runCli = async (args: string[], io: CliIO): Promise<number> => {
   const [command, ...rest] = args;
   if (command === 'lint') return runLintCommand(rest, io);
+  if (command === 'usage') return runUsageCommand(rest, io);
   if (command === '-h' || command === '--help') {
     io.stdout(`${USAGE}\n`);
     return 0;

@@ -152,3 +152,60 @@ with "smart quotes"*, then type the quotes in the tag again.
 If you render with `fixSmartQuotes: true`, lint with the same option
 (`--fix-smart-quotes` on the command line), so the linter accepts the same
 tags as the renderer.
+
+## Data usage
+
+`templateDataUsage` answers the opposite question: which fields of the data
+do the tags read, and which does no tag read? It shows what a template needs
+from the data, and what the data could drop.
+
+```ts
+import { templateDataUsage } from 'pptx-templates';
+
+const usage = await templateDataUsage('templates/Offer.pptx', {
+  data: { user: { name: 'Ada', mail: 'ada@example.com' }, items: [{ name: 'Apples', price: 1.5 }] },
+});
+// usage.used:    [{ path: 'user.name', locations: [{ part: 'ppt/slides/slide1.xml', slide: 1, shape: 'Title' }] },
+//                 { path: 'items', … }, { path: 'items[].name', … }, { path: 'items[].price', … }]
+// usage.unused:  ['user.mail']
+// usage.missing: paths the tags read that are not in the data
+```
+
+On the command line:
+
+```bash
+npx pptx-templates usage templates/Offer.pptx --data example.json
+npx pptx-templates usage first_page_de.pptx first_page_en.pptx --schema data.schema.json
+```
+
+```text
+templates/Offer.pptx
+  used (4)
+    user.name      slide 1 › "Title"
+    items          slide 2 › "Table"
+    items[].name   slide 2 › "Table"
+    items[].price  slide 2 › "Table"
+  unused (1)
+    user.mail
+```
+
+With several files, a last section lists the fields that none of them
+reads. `--json` prints the result as JSON, and `--watch` runs again on every
+save, as with `lint`. Without `--data` or `--schema`, only the read paths are
+listed.
+
+How paths are counted:
+
+- **Loops and EXEC are traced back to the data.** In
+  `{{FOR p IN items}}{{p.price}}{{END-FOR}}`, `p.price` reads `items[].price`
+  (`[]`: every entry). `{{EXEC a = user.address}}{{a.city}}` reads
+  `user.address.city`.
+- **Output vs. tested.** A value that is output or passed on as a whole
+  (`{{user}}`, `{{format(user)}}`, `{{items.map(i => i.name)}}`, `{{user[key]}}`)
+  covers every field below it. A value that is only tested (`{{IF user}}`,
+  `{{IF items.length > 0}}`) counts itself, not its fields.
+- **Unused subtrees are one entry**: `intern` rather than `intern.id`,
+  `intern.note`. `items[]` means no field of any entry is read.
+- Fields the data shows in only some list entries count for all entries.
+- Tags in layouts, masters, notes and charts are not rendered, so they do not
+  count. Neither does data your own code reads outside the tags.
