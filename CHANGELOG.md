@@ -13,6 +13,12 @@ semver, with the pre-1.0 convention that **breaking changes bump the minor**.
   paths are not in the data. Loop variables and EXEC names are traced back
   to the data (`produkte[].preis`); with several files, the command also
   lists the fields none of them reads. Supports `--json` and `--watch`.
+- Config file `pptx-templates.json` for `lint` and `usage`: file patterns,
+  each with its own data or schema. `{name}` placeholders carry parts of
+  the deck path into the data path (`{folder}/first_page_{lang}.pptx` →
+  `data/first_page_{lang}.json`). Without file arguments, the commands read
+  `pptx-templates.json` from the current folder; `--watch` picks up new
+  decks and folders that match.
 
 ## [0.3.1] - 2026-11-13
 

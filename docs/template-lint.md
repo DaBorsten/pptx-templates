@@ -76,6 +76,55 @@ with Ctrl+C.
 - In a terminal, the screen is cleared before each run.
 - `--watch` cannot be combined with `--json`.
 
+### Config file
+
+When decks need different data, list them in `pptx-templates.json`. Each
+entry pairs a file pattern with the data (or schema) for the decks it
+matches:
+
+```text
+pptx-templates.json
+data/
+  first_page_de.json      first_page_en.json
+  projects_page_de.json   projects_page_en.json
+customer-a/
+  first_page_de.pptx      first_page_en.pptx
+  projects_page_de.pptx   projects_page_en.pptx
+customer-b/
+  first_page_de.pptx      first_page_en.pptx
+```
+
+```json
+{
+  "templates": [
+    { "files": "{folder}/first_page_{lang}.pptx", "data": "data/first_page_{lang}.json" },
+    { "files": "{folder}/projects_page_{lang}.pptx", "data": "data/projects_page_{lang}.json" }
+  ]
+}
+```
+
+```bash
+npx pptx-templates lint            # reads pptx-templates.json in this folder
+npx pptx-templates lint --watch
+npx pptx-templates lint --config other.json
+```
+
+- `files` is a pattern or a list of patterns, relative to the config file.
+  `*` matches any part of a name, `**` any number of folders, and
+  `{name}` matches like `*` and remembers the part: `data` and `schema`
+  fill it in. Above, `customer-a/first_page_en.pptx` gets
+  `data/first_page_en.json`.
+- A pattern that matches no file is fine (customer-b has no projects page);
+  the command notes it. If no pattern matches anything, that is an error.
+- Data next to the decks works the same:
+  `{ "files": "{folder}/deck_{lang}.pptx", "data": "{folder}/data_{lang}.json" }`.
+- A deck that two entries match is an error, so the data is never ambiguous.
+- Optional top-level `openingTag`, `closingTag` and `fixSmartQuotes` apply to
+  all decks; the same options on the command line win.
+- With `--watch`, saving any deck, data file or the config file lints again,
+  and new decks or folders that match a pattern are picked up.
+- Folders starting with `.` and `node_modules` are not searched.
+
 ## What it checks
 
 | Rule | Severity | Finds |
@@ -190,9 +239,11 @@ templates/Offer.pptx
 ```
 
 With several files, a last section lists the fields that none of them
-reads. `--json` prints the result as JSON, and `--watch` runs again on every
-save, as with `lint`. Without `--data` or `--schema`, only the read paths are
-listed.
+reads. With a [config file](#config-file), that section comes once per data
+file, for the decks that share it (`npx pptx-templates usage` alone reads
+`pptx-templates.json`). `--json` prints the result as JSON, and `--watch`
+runs again on every save, as with `lint`. Without `--data` or `--schema`,
+only the read paths are listed.
 
 How paths are counted:
 

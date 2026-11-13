@@ -1,7 +1,9 @@
 import fs from 'fs';
+import path from 'path';
+import { CONFIG_FILE, readConfig, resolveConfig } from './config';
 import { lintTemplate } from './lint';
 import { LintTemplateOptions, TemplateLintIssue } from './types';
-import { FileWatcher, watchFiles } from './watch';
+import { FileWatcher, fileTargets, WatchTarget, watchTargets } from './watch';
 
 export type CliIO = {
   stdout: (text: string) => void;
@@ -31,6 +33,7 @@ const DEFAULT_WATCH_TIMING: WatchTiming = {
 };
 
 export const LINT_USAGE = `Usage: pptx-templates lint <file.pptx>... [options]
+       pptx-templates lint [--config <file.json>] [options]
 
 Checks the {{…}} tags of PowerPoint templates before rendering.
 
@@ -38,6 +41,8 @@ Options:
   --data <file.json>        Example data: report names and properties that
                             are not in it
   --schema <file.json>      JSON Schema of the data (alternative to --data)
+  -c, --config <file.json>  Decks and their data from a config file; without
+                            files, ${CONFIG_FILE} in this folder is used
   --opening-tag <text>      Tag start (default: {{)
   --closing-tag <text>      Tag end (default: }})
   --fix-smart-quotes        Accept typographic quotes, like renderTemplate's
@@ -163,6 +168,8 @@ export type ParsedArgs = {
   /** Read on every run, so `--watch` picks up changes. */
   dataFile?: string;
   schemaFile?: string;
+  /** `--config`, or `pptx-templates.json` when no file is given. */
+  configFile?: string;
   json: boolean;
   color?: boolean;
   maxWarnings?: number;
@@ -212,6 +219,10 @@ const parseArgs = (args: string[], lintOnly: boolean): ParsedArgs => {
       case '--schema':
         parsed.schemaFile = value();
         break;
+      case '-c':
+      case '--config':
+        parsed.configFile = value();
+        break;
       case '--opening-tag':
         parsed.options.openingTag = value();
         break;
@@ -232,16 +243,115 @@ const parseArgs = (args: string[], lintOnly: boolean): ParsedArgs => {
         parsed.files.push(arg);
     }
   }
+  if (
+    parsed.configFile &&
+    (parsed.files.length || parsed.dataFile || parsed.schemaFile)
+  ) {
+    throw new Error(
+      '--config names the files and their data: do not pass files, --data or --schema with it',
+    );
+  }
   return parsed;
 };
 
-const loadOptions = (parsed: ParsedArgs): LintTemplateOptions => {
-  const options = { ...parsed.options };
-  if (parsed.dataFile) options.data = readJson(parsed.dataFile, 'data');
-  if (parsed.schemaFile) {
-    options.schema = readJson(parsed.schemaFile, 'schema');
+/** One deck to process, with the options (data, schema) that belong to it. */
+export type Job = {
+  file: string;
+  options: LintTemplateOptions;
+  dataFile?: string;
+  schemaFile?: string;
+};
+
+/** What one run works on, read fresh for every run. */
+type Plan = {
+  jobs: Job[];
+  /** Hints for the user, e.g. config patterns that match nothing. */
+  notes: string[];
+  /** What `--watch` observes. */
+  targets: WatchTarget[];
+  /** Number of files shown in the watch footer. */
+  watchedCount: number;
+  /** Changes when the targets do: then the watcher is rebuilt. */
+  key: string;
+};
+
+/** Each JSON file is read once per run, even if many decks share it. */
+const jsonReader = () => {
+  const cache = new Map<string, Record<string, unknown>>();
+  return (file: string, what: string) => {
+    const key = `${what}\u0000${path.resolve(file)}`;
+    if (!cache.has(key)) cache.set(key, readJson(file, what));
+    return cache.get(key);
+  };
+};
+
+const loadPlan = (parsed: ParsedArgs): Plan => {
+  const read = jsonReader();
+  const load = (dataFile?: string, schemaFile?: string) => ({
+    ...(dataFile && { data: read(dataFile, 'data') }),
+    ...(schemaFile && { schema: read(schemaFile, 'schema') }),
+  });
+
+  if (!parsed.configFile) {
+    const options = {
+      ...parsed.options,
+      ...load(parsed.dataFile, parsed.schemaFile),
+    };
+    const watched = [
+      parsed.dataFile,
+      parsed.schemaFile,
+      ...parsed.files,
+    ].filter(Boolean);
+    return {
+      jobs: parsed.files.map((file) => ({
+        file,
+        options,
+        ...(parsed.dataFile && { dataFile: parsed.dataFile }),
+        ...(parsed.schemaFile && { schemaFile: parsed.schemaFile }),
+      })),
+      notes: [],
+      targets: fileTargets(watched),
+      watchedCount: watched.length,
+      key: '',
+    };
   }
-  return options;
+
+  const config = readConfig(parsed.configFile);
+  const resolved = resolveConfig(config, parsed.configFile);
+  if (!resolved.jobs.length) {
+    throw new Error(`${parsed.configFile}: no file matches its patterns`);
+  }
+  // Flags on the command line win over the config file
+  const base: LintTemplateOptions = {
+    ...(config.openingTag !== undefined && { openingTag: config.openingTag }),
+    ...(config.closingTag !== undefined && { closingTag: config.closingTag }),
+    ...(config.fixSmartQuotes !== undefined && {
+      fixSmartQuotes: config.fixSmartQuotes,
+    }),
+    ...parsed.options,
+  };
+  const jobs = resolved.jobs.map((job) => ({
+    ...job,
+    options: { ...base, ...load(job.dataFile, job.schemaFile) },
+  }));
+  const dataFiles = [
+    ...new Set(jobs.flatMap((j) => [j.dataFile, j.schemaFile]).filter(Boolean)),
+  ];
+  return {
+    jobs,
+    notes: resolved.unmatched.map((pattern) => `No file matches "${pattern}".`),
+    targets: [
+      ...fileTargets([parsed.configFile, ...dataFiles]),
+      ...resolved.targets,
+    ],
+    watchedCount: 1 + jobs.length + dataFiles.length,
+    key: JSON.stringify([
+      config,
+      jobs.map((j) => j.file),
+      dataFiles,
+      resolved.targets.map((t) => t.dir),
+    ]),
+  };
 };
 
 /** Output of one run over all files, collected rather than printed. */
@@ -254,8 +364,8 @@ export type CommandRun = {
 };
 
 type RunFiles = (
+  jobs: Job[],
   parsed: ParsedArgs,
-  options: LintTemplateOptions,
   color: boolean,
 ) => Promise<CommandRun>;
 
@@ -272,12 +382,12 @@ export const unreadableRun = (
 });
 
 /** Lints all files; output is collected, not printed. */
-const lintFiles: RunFiles = async (parsed, options, color) => {
+const lintFiles: RunFiles = async (jobs, parsed, color) => {
   let errors = 0;
   let warnings = 0;
   let stdout = '';
   const report: Record<string, TemplateLintIssue[]> = {};
-  for (const file of parsed.files) {
+  for (const { file, options } of jobs) {
     let issues: TemplateLintIssue[];
     try {
       ({ issues } = await lintTemplate(file, options));
@@ -301,7 +411,7 @@ const lintFiles: RunFiles = async (parsed, options, color) => {
           (t) => style.bold(errors ? style.red(t) : style.yellow(t)),
           `${total} problem(s): ${errors} error(s), ${warnings} warning(s)`,
         )}\n`
-      : `${paint((t) => style.bold(ansi(32, 39)(t)), `No problems found in ${parsed.files.length} file(s)`)}\n`;
+      : `${paint((t) => style.bold(ansi(32, 39)(t)), `No problems found in ${jobs.length} file(s)`)}\n`;
   }
 
   const tooManyWarnings =
@@ -314,18 +424,38 @@ const lintFiles: RunFiles = async (parsed, options, color) => {
   };
 };
 
+/** Plans and runs once; a plan that fails (unreadable JSON) is a run, too. */
+const planAndRun = async (
+  parsed: ParsedArgs,
+  run: RunFiles,
+  color: boolean,
+): Promise<{ result: CommandRun; plan?: Plan }> => {
+  let plan: Plan;
+  try {
+    plan = loadPlan(parsed);
+  } catch (error) {
+    const stderr = `${printable((error as Error).message)}\n`;
+    return { result: { code: 2, stdout: '', stderr, unreadable: true } };
+  }
+  const result = await run(plan.jobs, parsed, color);
+  const notes = plan.notes.map((note) => `${printable(note)}\n`).join('');
+  return { result: { ...result, stderr: notes + result.stderr }, plan };
+};
+
 const delay = (ms: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 const clock = () => new Date().toTimeString().slice(0, 8);
 
 /**
- * `--watch`: runs, then again after every save of a deck or of the
- * `--data`/`--schema` file. A file read mid-save (half-written ZIP, briefly
- * missing during PowerPoint's rename, locked) is retried before the error is
- * shown, and a lint error never ends the watch. Resolves with 0 once
- * `io.signal` aborts, and with 2 when watching itself fails (the folder was
- * deleted); without a signal, it runs until the process ends.
+ * `--watch`: runs, then again after every save of a deck, of the
+ * `--data`/`--schema` file or of the config file and its data. With a
+ * config file, new decks that match its patterns are picked up. A file
+ * read mid-save (half-written ZIP, briefly missing during PowerPoint's
+ * rename, locked) is retried before the error is shown, and a lint error
+ * never ends the watch. Resolves with 0 once `io.signal` aborts, and with 2
+ * when watching itself fails (the folder was deleted); without a signal,
+ * it runs until the process ends.
  */
 const watchAndRun = (
   parsed: ParsedArgs,
@@ -335,44 +465,74 @@ const watchAndRun = (
 ): Promise<number> => {
   const timing = { ...DEFAULT_WATCH_TIMING, ...io.watchTiming };
   const { signal } = io;
-  const watched = [parsed.dataFile, parsed.schemaFile, ...parsed.files].filter(
-    Boolean,
-  );
   const dim = (text: string) => (color ? style.dim(text) : text);
   let stopped = false;
-
-  const attempt = async (): Promise<CommandRun> => {
-    try {
-      return await runFiles(parsed, loadOptions(parsed), color);
-    } catch (error) {
-      // --data/--schema unreadable or invalid JSON
-      const stderr = `${(error as Error).message}\n`;
-      return { code: 2, stdout: '', stderr, unreadable: true };
-    }
-  };
-
-  const runAndReport = async () => {
-    let result = await attempt();
-    for (let i = 0; result.unreadable && i < timing.retries; i++) {
-      if (stopped) return;
-      await delay(timing.retryDelayMs);
-      result = await attempt();
-    }
-    if (stopped) return;
-    if (io.clearScreen) io.stdout('\u001b[2J\u001b[3J\u001b[H');
-    if (result.stdout) io.stdout(result.stdout);
-    if (result.stderr) io.stderr(result.stderr);
-    io.stdout(
-      dim(
-        `\n[${clock()}] Watching ${watched.length} file(s) for changes. Press Ctrl+C to stop.\n`,
-      ),
-    );
-  };
 
   return new Promise<number>((resolve) => {
     let timer: ReturnType<typeof setTimeout>;
     let running: Promise<void> | undefined;
     let again = false;
+    let watcher: FileWatcher | undefined;
+    let watchedKey: string | undefined;
+    let watchedCount = 0;
+
+    const stop = (code: number) => {
+      if (stopped) return;
+      stopped = true;
+      clearTimeout(timer);
+      watcher?.close();
+      signal?.removeEventListener('abort', onAbort);
+      Promise.resolve(running).then(() => resolve(code));
+    };
+    const onAbort = () => stop(0);
+    const schedule = () => {
+      clearTimeout(timer);
+      timer = setTimeout(run, timing.debounceMs);
+    };
+
+    /** (Re)builds the watcher when the targets changed; false if it failed. */
+    const watch = (targets: WatchTarget[], key: string): boolean => {
+      if (watcher && key === watchedKey) return true;
+      watcher?.close();
+      watcher = undefined;
+      try {
+        watcher = watchTargets(targets, schedule, (error) => {
+          // Without a working watcher the command would wait forever
+          io.stderr(`${printable(`Watching failed: ${error.message}`)}\n`);
+          stop(2);
+        });
+      } catch (error) {
+        io.stderr(
+          `${printable(`Cannot watch: ${(error as Error).message}`)}\n`,
+        );
+        stop(2);
+        return false;
+      }
+      watchedKey = key;
+      return true;
+    };
+
+    const runAndReport = async () => {
+      let { result, plan } = await planAndRun(parsed, runFiles, color);
+      for (let i = 0; result.unreadable && i < timing.retries; i++) {
+        if (stopped) return;
+        await delay(timing.retryDelayMs);
+        ({ result, plan } = await planAndRun(parsed, runFiles, color));
+      }
+      if (stopped) return;
+      if (plan) {
+        if (!watch(plan.targets, plan.key)) return;
+        watchedCount = plan.watchedCount;
+      }
+      if (io.clearScreen) io.stdout('\u001b[2J\u001b[3J\u001b[H');
+      if (result.stdout) io.stdout(result.stdout);
+      if (result.stderr) io.stderr(result.stderr);
+      io.stdout(
+        dim(
+          `\n[${clock()}] Watching ${watchedCount} file(s) for changes. Press Ctrl+C to stop.\n`,
+        ),
+      );
+    };
 
     const run = () => {
       if (running) {
@@ -390,33 +550,16 @@ const watchAndRun = (
           }
         });
     };
-    const schedule = () => {
-      clearTimeout(timer);
-      timer = setTimeout(run, timing.debounceMs);
-    };
 
-    let watcher: FileWatcher;
-    const stop = (code: number) => {
-      if (stopped) return;
-      stopped = true;
-      clearTimeout(timer);
-      watcher?.close();
-      signal?.removeEventListener('abort', onAbort);
-      Promise.resolve(running).then(() => resolve(code));
-    };
-    const onAbort = () => stop(0);
-
-    try {
-      watcher = watchFiles(watched, schedule, (error) => {
-        // Without a working watcher the command would wait forever
-        io.stderr(`${printable(`Watching failed: ${error.message}`)}\n`);
-        stop(2);
-      });
-    } catch (error) {
-      io.stderr(`${printable(`Cannot watch: ${(error as Error).message}`)}\n`);
-      resolve(2);
-      return;
-    }
+    // Until the first plan is read, watch what the command line names
+    const initial = [
+      parsed.configFile,
+      parsed.dataFile,
+      parsed.schemaFile,
+      ...parsed.files,
+    ].filter(Boolean);
+    watchedCount = initial.length;
+    if (!watch(fileTargets(initial), 'initial')) return;
 
     if (signal?.aborted) return onAbort();
     signal?.addEventListener('abort', onAbort, { once: true });
@@ -426,7 +569,7 @@ const watchAndRun = (
 
 /**
  * A command over .pptx files with the shared options (`--data`, `--watch`,
- * …); resolves to the exit code.
+ * `--config`, …); resolves to the exit code.
  */
 export const runFileCommand = async (
   args: string[],
@@ -445,9 +588,15 @@ export const runFileCommand = async (
     io.stdout(`${usage}\n`);
     return 0;
   }
-  if (!parsed.files.length) {
-    io.stderr(`No .pptx file given.\n\n${usage}\n`);
-    return 2;
+  if (!parsed.files.length && !parsed.configFile) {
+    if (fs.existsSync(CONFIG_FILE)) {
+      parsed.configFile = CONFIG_FILE;
+    } else {
+      io.stderr(
+        `No .pptx file given, and no ${CONFIG_FILE} in this folder.\n\n${usage}\n`,
+      );
+      return 2;
+    }
   }
   if (parsed.watch && parsed.json) {
     io.stderr(`--watch cannot be combined with --json.\n\n${usage}\n`);
@@ -457,14 +606,15 @@ export const runFileCommand = async (
   const color = parsed.color ?? io.color ?? false;
   if (parsed.watch) return watchAndRun(parsed, io, color, command.run);
 
-  let options: LintTemplateOptions;
+  let plan: Plan;
   try {
-    options = loadOptions(parsed);
+    plan = loadPlan(parsed);
   } catch (error) {
-    io.stderr(`${(error as Error).message}\n\n${usage}\n`);
+    io.stderr(`${printable((error as Error).message)}\n\n${usage}\n`);
     return 2;
   }
-  const result = await command.run(parsed, options, color);
+  plan.notes.forEach((note) => io.stderr(`${printable(note)}\n`));
+  const result = await command.run(plan.jobs, parsed, color);
   if (result.stdout) io.stdout(result.stdout);
   if (result.stderr) io.stderr(result.stderr);
   return result.code;
