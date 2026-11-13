@@ -1,12 +1,33 @@
 import fs from 'fs';
 import { lintTemplate } from './lint';
 import { LintTemplateOptions, TemplateLintIssue } from './types';
+import { FileWatcher, watchFiles } from './watch';
 
 export type CliIO = {
   stdout: (text: string) => void;
   stderr: (text: string) => void;
   /** Colored output; default off (the bin sets it from the terminal). */
   color?: boolean;
+  /** `--watch` clears the screen before each run (the bin sets it for a terminal). */
+  clearScreen?: boolean;
+  /** Ends `--watch`; without it the watch runs until the process ends. */
+  signal?: AbortSignal;
+  /** `--watch` timings; the defaults suit PowerPoint, tests shorten them. */
+  watchTiming?: Partial<WatchTiming>;
+};
+
+type WatchTiming = {
+  /** Quiet time after the last file event before linting. */
+  debounceMs: number;
+  /** Extra attempts when a file cannot be read (mid-save, locked). */
+  retries: number;
+  retryDelayMs: number;
+};
+
+const DEFAULT_WATCH_TIMING: WatchTiming = {
+  debounceMs: 300,
+  retries: 5,
+  retryDelayMs: 200,
 };
 
 export const LINT_USAGE = `Usage: pptx-templates lint <file.pptx>... [options]
@@ -23,6 +44,9 @@ Options:
                             fixSmartQuotes option
   --max-warnings <n>        Fail when there are more than n warnings
   --json                    Print the issues as JSON
+  -w, --watch               Lint again whenever a file (or the --data/--schema
+                            file) is saved; the deck may stay open in
+                            PowerPoint. Stop with Ctrl+C
   --color / --no-color      Force colors on or off (default: on in a terminal;
                             NO_COLOR and FORCE_COLOR are respected)
   -h, --help                Show this help
@@ -37,8 +61,9 @@ const readJson = (file: string, what: string): Record<string, unknown> => {
     }
     return value;
   } catch (error) {
+    // JSON.parse quotes the file content in its message
     throw new Error(
-      `Cannot read ${what} ${file}: ${(error as Error).message}`,
+      printable(`Cannot read ${what} ${file}: ${(error as Error).message}`),
       {
         cause: error,
       },
@@ -135,9 +160,13 @@ export const formatIssues = (
 type ParsedArgs = {
   files: string[];
   options: LintTemplateOptions;
+  /** Read on every run, so `--watch` picks up changes. */
+  dataFile?: string;
+  schemaFile?: string;
   json: boolean;
   color?: boolean;
   maxWarnings?: number;
+  watch: boolean;
   help: boolean;
 };
 
@@ -146,6 +175,7 @@ const parseArgs = (args: string[]): ParsedArgs => {
     files: [],
     options: {},
     json: false,
+    watch: false,
     help: false,
   };
   for (let i = 0; i < args.length; i++) {
@@ -163,6 +193,10 @@ const parseArgs = (args: string[]): ParsedArgs => {
       case '--json':
         parsed.json = true;
         break;
+      case '-w':
+      case '--watch':
+        parsed.watch = true;
+        break;
       case '--color':
         parsed.color = true;
         break;
@@ -173,10 +207,10 @@ const parseArgs = (args: string[]): ParsedArgs => {
         parsed.options.fixSmartQuotes = true;
         break;
       case '--data':
-        parsed.options.data = readJson(value(), 'data');
+        parsed.dataFile = value();
         break;
       case '--schema':
-        parsed.options.schema = readJson(value(), 'schema');
+        parsed.schemaFile = value();
         break;
       case '--opening-tag':
         parsed.options.openingTag = value();
@@ -200,6 +234,184 @@ const parseArgs = (args: string[]): ParsedArgs => {
   return parsed;
 };
 
+const loadOptions = (parsed: ParsedArgs): LintTemplateOptions => {
+  const options = { ...parsed.options };
+  if (parsed.dataFile) options.data = readJson(parsed.dataFile, 'data');
+  if (parsed.schemaFile) {
+    options.schema = readJson(parsed.schemaFile, 'schema');
+  }
+  return options;
+};
+
+type LintRun = {
+  code: number;
+  stdout: string;
+  stderr: string;
+  /** A file could not be read; `--watch` tries again before reporting. */
+  unreadable: boolean;
+};
+
+/** Lints all files; output is collected, not printed. */
+const lintFiles = async (
+  parsed: ParsedArgs,
+  options: LintTemplateOptions,
+  color: boolean,
+): Promise<LintRun> => {
+  let errors = 0;
+  let warnings = 0;
+  let stdout = '';
+  const report: Record<string, TemplateLintIssue[]> = {};
+  for (const file of parsed.files) {
+    let issues: TemplateLintIssue[];
+    try {
+      ({ issues } = await lintTemplate(file, options));
+    } catch (error) {
+      return {
+        code: 2,
+        stdout,
+        stderr: `${printable(`Cannot read ${file}: ${(error as Error).message}`)}\n`,
+        unreadable: true,
+      };
+    }
+    report[file] = issues;
+    errors += issues.filter((i) => i.severity === 'error').length;
+    warnings += issues.filter((i) => i.severity === 'warning').length;
+    if (!parsed.json) stdout += formatIssues(file, issues, color);
+  }
+
+  if (parsed.json) {
+    stdout += JSON.stringify(report, null, 2) + '\n';
+  } else {
+    const total = errors + warnings;
+    const paint = (fn: (t: string) => string, text: string) =>
+      color ? fn(text) : text;
+    stdout += total
+      ? `\n${paint(
+          (t) => style.bold(errors ? style.red(t) : style.yellow(t)),
+          `${total} problem(s): ${errors} error(s), ${warnings} warning(s)`,
+        )}\n`
+      : `${paint((t) => style.bold(ansi(32, 39)(t)), `No problems found in ${parsed.files.length} file(s)`)}\n`;
+  }
+
+  const tooManyWarnings =
+    parsed.maxWarnings !== undefined && warnings > parsed.maxWarnings;
+  return {
+    code: errors || tooManyWarnings ? 1 : 0,
+    stdout,
+    stderr: '',
+    unreadable: false,
+  };
+};
+
+const delay = (ms: number) =>
+  new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+const clock = () => new Date().toTimeString().slice(0, 8);
+
+/**
+ * `--watch`: lints, then again after every save of a deck or of the
+ * `--data`/`--schema` file. A file read mid-save (half-written ZIP, briefly
+ * missing during PowerPoint's rename, locked) is retried before the error is
+ * shown, and a lint error never ends the watch. Resolves with 0 once
+ * `io.signal` aborts, and with 2 when watching itself fails (the folder was
+ * deleted); without a signal, it runs until the process ends.
+ */
+const watchAndLint = (
+  parsed: ParsedArgs,
+  io: CliIO,
+  color: boolean,
+): Promise<number> => {
+  const timing = { ...DEFAULT_WATCH_TIMING, ...io.watchTiming };
+  const { signal } = io;
+  const watched = [parsed.dataFile, parsed.schemaFile, ...parsed.files].filter(
+    Boolean,
+  );
+  const dim = (text: string) => (color ? style.dim(text) : text);
+  let stopped = false;
+
+  const attempt = async (): Promise<LintRun> => {
+    try {
+      return await lintFiles(parsed, loadOptions(parsed), color);
+    } catch (error) {
+      // --data/--schema unreadable or invalid JSON
+      const stderr = `${(error as Error).message}\n`;
+      return { code: 2, stdout: '', stderr, unreadable: true };
+    }
+  };
+
+  const lintAndReport = async () => {
+    let result = await attempt();
+    for (let i = 0; result.unreadable && i < timing.retries; i++) {
+      if (stopped) return;
+      await delay(timing.retryDelayMs);
+      result = await attempt();
+    }
+    if (stopped) return;
+    if (io.clearScreen) io.stdout('\u001b[2J\u001b[3J\u001b[H');
+    if (result.stdout) io.stdout(result.stdout);
+    if (result.stderr) io.stderr(result.stderr);
+    io.stdout(
+      dim(
+        `\n[${clock()}] Watching ${watched.length} file(s) for changes. Press Ctrl+C to stop.\n`,
+      ),
+    );
+  };
+
+  return new Promise<number>((resolve) => {
+    let timer: ReturnType<typeof setTimeout>;
+    let running: Promise<void> | undefined;
+    let again = false;
+
+    const run = () => {
+      if (running) {
+        // Saved while linting: lint once more afterwards
+        again = true;
+        return;
+      }
+      running = lintAndReport()
+        .catch((error) => io.stderr(`${error?.stack ?? error}\n`))
+        .finally(() => {
+          running = undefined;
+          if (again && !stopped) {
+            again = false;
+            run();
+          }
+        });
+    };
+    const schedule = () => {
+      clearTimeout(timer);
+      timer = setTimeout(run, timing.debounceMs);
+    };
+
+    let watcher: FileWatcher;
+    const stop = (code: number) => {
+      if (stopped) return;
+      stopped = true;
+      clearTimeout(timer);
+      watcher?.close();
+      signal?.removeEventListener('abort', onAbort);
+      Promise.resolve(running).then(() => resolve(code));
+    };
+    const onAbort = () => stop(0);
+
+    try {
+      watcher = watchFiles(watched, schedule, (error) => {
+        // Without a working watcher the command would wait forever
+        io.stderr(`${printable(`Watching failed: ${error.message}`)}\n`);
+        stop(2);
+      });
+    } catch (error) {
+      io.stderr(`${printable(`Cannot watch: ${(error as Error).message}`)}\n`);
+      resolve(2);
+      return;
+    }
+
+    if (signal?.aborted) return onAbort();
+    signal?.addEventListener('abort', onAbort, { once: true });
+    run();
+  });
+};
+
 /** `pptx-templates lint …`; resolves to the exit code. */
 export const runLintCommand = async (
   args: string[],
@@ -220,42 +432,23 @@ export const runLintCommand = async (
     io.stderr(`No .pptx file given.\n\n${LINT_USAGE}\n`);
     return 2;
   }
+  if (parsed.watch && parsed.json) {
+    io.stderr(`--watch cannot be combined with --json.\n\n${LINT_USAGE}\n`);
+    return 2;
+  }
 
   const color = parsed.color ?? io.color ?? false;
-  let errors = 0;
-  let warnings = 0;
-  const report: Record<string, TemplateLintIssue[]> = {};
-  for (const file of parsed.files) {
-    let issues: TemplateLintIssue[];
-    try {
-      ({ issues } = await lintTemplate(file, parsed.options));
-    } catch (error) {
-      io.stderr(`Cannot read ${file}: ${(error as Error).message}\n`);
-      return 2;
-    }
-    report[file] = issues;
-    errors += issues.filter((i) => i.severity === 'error').length;
-    warnings += issues.filter((i) => i.severity === 'warning').length;
-    if (!parsed.json) io.stdout(formatIssues(file, issues, color));
-  }
+  if (parsed.watch) return watchAndLint(parsed, io, color);
 
-  if (parsed.json) {
-    io.stdout(JSON.stringify(report, null, 2) + '\n');
-  } else {
-    const total = errors + warnings;
-    const paint = (fn: (t: string) => string, text: string) =>
-      color ? fn(text) : text;
-    io.stdout(
-      total
-        ? `\n${paint(
-            (t) => style.bold(errors ? style.red(t) : style.yellow(t)),
-            `${total} problem(s): ${errors} error(s), ${warnings} warning(s)`,
-          )}\n`
-        : `${paint((t) => style.bold(ansi(32, 39)(t)), `No problems found in ${parsed.files.length} file(s)`)}\n`,
-    );
+  let options: LintTemplateOptions;
+  try {
+    options = loadOptions(parsed);
+  } catch (error) {
+    io.stderr(`${(error as Error).message}\n\n${LINT_USAGE}\n`);
+    return 2;
   }
-
-  const tooManyWarnings =
-    parsed.maxWarnings !== undefined && warnings > parsed.maxWarnings;
-  return errors || tooManyWarnings ? 1 : 0;
+  const result = await lintFiles(parsed, options, color);
+  if (result.stdout) io.stdout(result.stdout);
+  if (result.stderr) io.stderr(result.stderr);
+  return result.code;
 };

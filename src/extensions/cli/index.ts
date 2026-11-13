@@ -36,6 +36,7 @@ if (require.main === module) {
     stdout: (text) => process.stdout.write(text),
     stderr: (text) => process.stderr.write(text),
     color: supportsColor(),
+    clearScreen: !!process.stdout.isTTY,
   }).then(
     (code) => (process.exitCode = code),
     (error) => {

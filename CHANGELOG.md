@@ -6,6 +6,20 @@ semver, with the pre-1.0 convention that **breaking changes bump the minor**.
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-11-13
+
+### Added
+
+- `pptx-templates lint --watch` (`-w`): lints again whenever a deck or the
+  `--data`/`--schema` file is saved. The deck can stay open in PowerPoint;
+  saves via a temporary file and half-written files are handled.
+
+### Security
+
+- `pptx-templates lint`: error messages for an unreadable deck or
+  `--data`/`--schema` file no longer pass control characters to the
+  terminal (`JSON.parse` quotes the file content in its message).
+
 ## [0.3.0] - 2026-11-09
 
 ### Security
@@ -171,7 +185,8 @@ for that history.
   into one `.png` part. The fallback now gets the same placeholder PNG that
   pptxgenjs 3.12 wrote.
 
-[Unreleased]: https://github.com/DaBorsten/pptx-templates/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/DaBorsten/pptx-templates/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/DaBorsten/pptx-templates/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/DaBorsten/pptx-templates/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/DaBorsten/pptx-templates/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/DaBorsten/pptx-templates/compare/v0.1.3...v0.2.0
