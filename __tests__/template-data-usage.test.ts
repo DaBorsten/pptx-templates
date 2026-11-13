@@ -162,6 +162,149 @@ test('tags in layouts are not counted', async () => {
   expect(paths(usage.used)).toEqual(['datum']);
 });
 
+describe('more tag kinds and expressions', () => {
+  test('ELSE-IF tests like IF; IMAGE uses its value as a whole', async () => {
+    const usage = await usageOf(['{{IF kunde.firma}}a{{ELSE-IF intern}}b{{END-IF}}', '{{IMAGE kunde.adresse}}'], {
+      data,
+    });
+    expect(paths(usage.used)).toEqual(['kunde.firma', 'intern', 'kunde.adresse']);
+    // intern is only tested; the image gets the whole address
+    expect(usage.unused).toEqual(['kunde.name', 'kunde.ustId', 'produkte', 'datum', 'intern.notiz', 'intern.id']);
+  });
+
+  test('EXEC inside a loop traces the loop variable', async () => {
+    const usage = await usageOf([
+      '{{FOR p IN produkte}}',
+      '{{EXEC x = p.preis}}{{EXEC summe = p.rabatt * 2}}',
+      '{{x}} {{summe}}',
+      '{{END-FOR}}',
+    ]);
+    expect(paths(usage.used)).toEqual(['produkte', 'produkte[].preis', 'produkte[].rabatt']);
+    expect(usage.unused).toEqual(['kunde', 'produkte[].name', 'produkte[].sku', 'datum', 'intern']);
+  });
+
+  test('EXEC names stay bound after the loop, and alias each other', async () => {
+    const usage = await usageOf(['{{EXEC k = kunde}}{{EXEC a = k.adresse}}', '{{a.plz}}']);
+    expect(paths(usage.used)).toEqual(['kunde', 'kunde.adresse', 'kunde.adresse.plz']);
+    expect(usage.unused).toContain('kunde.adresse.ort');
+    expect(usage.unused).toContain('kunde.name');
+  });
+
+  test('||, ?? and the branches of ?: pass the value on; comparisons do not', async () => {
+    const passed = await usageOf([
+      "{{kunde.adresse || kunde.firma}}",
+      "{{intern ?? 'none'}}",
+      "{{datum ? produkte : ''}}",
+    ]);
+    // Everything below adresse, intern and produkte counts as used
+    expect(passed.unused).toEqual(['kunde.name', 'kunde.ustId']);
+
+    const compared = await usageOf([
+      "{{kunde.adresse == null ? 'x' : 'y'}}",
+      '{{IF !intern}}x{{END-IF}}',
+      "{{produkte != undefined && 'ja'}}",
+    ]);
+    expect(compared.unused).toEqual([
+      'kunde.name',
+      'kunde.firma',
+      'kunde.ustId',
+      'kunde.adresse.ort',
+      'kunde.adresse.plz',
+      'produkte[]',
+      'datum',
+      'intern.notiz',
+      'intern.id',
+    ]);
+  });
+
+  test('a method on a string reads the string, not more', async () => {
+    const usage = await usageOf(['{{kunde.name.toUpperCase()}}', '{{datum.length}}']);
+    expect(paths(usage.used)).toEqual(['kunde.name', 'datum']);
+    expect(usage.missing).toEqual([]);
+  });
+});
+
+describe('more schemas and data', () => {
+  test('allOf, anyOf and oneOf branches all contribute fields', async () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        kunde: {
+          allOf: [
+            { type: 'object', properties: { name: {} } },
+            { type: 'object', properties: { mail: {} } },
+          ],
+        },
+        kontakt: {
+          anyOf: [
+            { type: 'object', properties: { tel: {} } },
+            { type: 'object', properties: { fax: {} } },
+          ],
+        },
+        wert: { oneOf: [{ type: 'string' }, { type: 'number' }] },
+      },
+    };
+    const usage = await usageOf(['{{kunde.mail}}', '{{kontakt.fax}}', '{{kunde.tel}}'], { schema });
+    expect(paths(usage.used)).toEqual(['kunde.mail', 'kontakt.fax']);
+    expect(paths(usage.missing)).toEqual(['kunde.tel']);
+    expect(usage.unused).toEqual(['kunde.name', 'kontakt.tel', 'wert']);
+  });
+
+  test('additionalProperties: true next to listed fields', async () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        meta: { type: 'object', properties: { version: {}, autor: {} }, additionalProperties: true },
+      },
+    };
+    const usage = await usageOf(['{{meta.version}}', '{{meta.sonstiges.x}}'], { schema });
+    // Unlisted keys are allowed: used, not missing
+    expect(paths(usage.used)).toEqual(['meta.version', 'meta.sonstiges.x']);
+    expect(usage.missing).toEqual([]);
+    expect(usage.unused).toEqual(['meta.autor']);
+  });
+
+  test('recursive schemas stop instead of looping', async () => {
+    const schema = {
+      type: 'object',
+      properties: { baum: { $ref: '#/$defs/knoten' } },
+      $defs: {
+        knoten: {
+          type: 'object',
+          properties: { name: {}, kinder: { type: 'array', items: { $ref: '#/$defs/knoten' } } },
+        },
+      },
+    };
+    const usage = await usageOf(['{{baum.kinder[0].kinder[0].name}}'], { schema });
+    expect(paths(usage.used)).toEqual(['baum.kinder[].kinder[].name']);
+    expect(usage.unused).toContain('baum.name');
+  });
+
+  test('data and schema together: fields of both count', async () => {
+    const usage = await usageOf(['{{kunde.name}}'], {
+      data: { kunde: { name: 'Ada' } },
+      schema: { type: 'object', properties: { kunde: { type: 'object', properties: { mail: {} } } } },
+    });
+    expect(usage.unused).toEqual(['kunde.mail']);
+    expect(usage.missing).toEqual([]);
+  });
+
+  test('keys that are not names are quoted', async () => {
+    const usage = await usageOf(['{{kunde["b c"]}}', "{{kunde['ü-1']}}"], {
+      data: { kunde: { 'b c': 1, 'x.y': 2, 'ü-1': 3, 'äb': 4 } },
+    });
+    expect(paths(usage.used)).toEqual(['kunde["b c"]', 'kunde["ü-1"]']);
+    // Letters outside ASCII are names: no quotes
+    expect(usage.unused).toEqual(['kunde["x.y"]', 'kunde.äb']);
+  });
+
+  test('a list index reads the entries like a loop', async () => {
+    const usage = await usageOf(['{{produkte[0].name}}', "{{produkte[1]['preis']}}"]);
+    expect(paths(usage.used)).toEqual(['produkte[].name', 'produkte[].preis']);
+    expect(usage.unused).toContain('produkte[].sku');
+  });
+});
+
 describe('CLI', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pptx-usage-'));
   const run = async (...args: string[]) => {
