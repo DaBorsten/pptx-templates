@@ -276,3 +276,13 @@ To check a template for mistakes before rendering, use the
   reject `write()` with an error message that names the tag.
 - Text inserted from your data is never rendered again, so a value that
   contains `{{` stays literal.
+- A tag ends at the first closing delimiter, even inside a string or an
+  object literal: `{{'a}}b'}}` and `{{ {a: {b: 1}}.a }}` break, as do
+  `${'}'}` with `${`/`}` and `[[ [1, [2]] ]]` with `[[`/`]]`. Pick delimiters
+  that don't occur in your expressions. The same applies to text right
+  before a tag: in `[[[name]]`, the tag starts at the first `[[`. The
+  [linter](./template-lint.md) reports both cases.
+- Opening and closing delimiters may differ (`[[`/`]]`, `<%`/`%>`,
+  `${`/`}`, `«`/`»`) or be the same (`+++`). Pass the same ones to the
+  linter (`--opening-tag`, `--closing-tag`, or `openingTag`/`closingTag` in
+  `pptx-templates.json`), or it checks the wrong tags.

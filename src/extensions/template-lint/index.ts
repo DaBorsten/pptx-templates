@@ -1,4 +1,6 @@
-export { lintTemplate, templateDataUsage } from './lint';
+export { lintTemplate, templateDataSkeleton, templateDataUsage } from './lint';
+export { mergeDataSkeleton } from './skeleton';
+export type { TemplateDataSkeleton } from './skeleton';
 export type {
   JsonSchema,
   LintTemplateOptions,

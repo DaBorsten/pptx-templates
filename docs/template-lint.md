@@ -260,3 +260,68 @@ How paths are counted:
 - Fields the data shows in only some list entries count for all entries.
 - Tags in layouts, masters, notes and charts are not rendered, so they do not
   count. Neither does data your own code reads outside the tags.
+
+## Example data from the tags
+
+`templateDataSkeleton` goes the other way: it builds example data from the
+tags. Every path a tag reads gets a placeholder, so a new template can be
+linted and rendered before the real data exists. Several decks give one
+combined object.
+
+```ts
+import { templateDataSkeleton } from 'pptx-templates';
+
+const { data, functions } = await templateDataSkeleton([
+  'templates/Offer.pptx',
+  'templates/Invoice.pptx',
+]);
+// data: { user: { name: 'user.name', vip: true },
+//         items: [{ name: 'items[].name', price: 1 }] }
+// functions: ['money'], called as money(…): pass it as additionalJsContext
+```
+
+The placeholders:
+
+| The tags… | Placeholder |
+|---|---|
+| output the value: `{{user.name}}` | its path as text: `"user.name"` |
+| only test it: `{{IF user.vip}}` | `true` |
+| call a number method or calculate with it: `{{item.price.toFixed(2)}}`, `{{total * 2}}` | `1` |
+| loop over it or call a list method: `{{FOR i IN items}}`, `{{tags.join(', ')}}` | a list with one entry |
+
+Loops and EXEC names are traced back to the data as in
+[data usage](#data-usage). Names that are called (`{{money(total)}}`) are
+helpers, not data, and are listed in `functions`; so are methods of an
+object (`{{user.format()}}` lists `user.format` and gives `user: {}`). A
+value that is only compared (`{{IF total > 100}}`) counts as tested, and
+operands of `+` get their path as text. Tags with errors are counted in
+`errorCount`.
+
+On the command line:
+
+```bash
+npx pptx-templates init templates/Offer.pptx templates/Invoice.pptx    # prints the data
+npx pptx-templates init templates/*.pptx -o data/example.json
+npx pptx-templates init                                                 # every data file of pptx-templates.json
+```
+
+```text
+created  data/example.json  2 top-level field(s) from 2 file(s)
+```
+
+If the file exists, `init` completes it instead of replacing it: values you
+filled in stay, only fields that are missing are added, and list entries
+that are objects each get the missing fields. An empty list stays empty.
+Run it again after you add tags:
+
+```text
+completed  data/example.json  1 field(s) added from 2 file(s)
+  + items[].discount
+```
+
+A data file that is not valid JSON is never touched. With a
+[config file](#config-file), `init` writes each `data` file it names from
+the decks mapped to it (entries without `data` are skipped), and creates
+missing folders. The `{name}` placeholders work as for `lint`: with
+`data/cover_{lang}.json`, all `cover_de.pptx` decks of all customers fill
+`data/cover_de.json`.

@@ -188,6 +188,8 @@ misspelled field names (`user.nmae` → *did you mean "name"?*).
 - The exit code fails a CI job when a template is broken.
 - `npx pptx-templates usage` lists which data fields the tags read, and which
   ones no tag reads.
+- `npx pptx-templates init` writes example data with every field the tags
+  read, combined over several decks; run again, it only adds what is missing.
 - A `pptx-templates.json` maps many decks to their data, for example one data
   file per language for every customer folder:
 

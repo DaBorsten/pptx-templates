@@ -6,6 +6,17 @@ semver, with the pre-1.0 convention that **breaking changes bump the minor**.
 
 ## [Unreleased]
 
+### Added
+
+- `templateDataSkeleton` and `pptx-templates init`: example data built from
+  the tags of one or more templates, every read path with a placeholder
+  (the path as text, `true` for tested values, `1` for numbers, a
+  one-entry list for loops). Several decks give one combined file. An
+  existing data file is completed, not replaced: its values stay, missing
+  fields are added. Without file arguments, `init` writes every data file
+  of `pptx-templates.json` from the decks mapped to it. Called names
+  (`{{money(x)}}`) are reported as helpers instead of data.
+
 ### Changed
 
 - Docs site: new design. One neutral grey scale with an orange accent used
