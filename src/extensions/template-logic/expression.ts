@@ -149,6 +149,13 @@ export type ExpressionReference = {
    * (`a > 1`, `!a`, the condition of `a ? b : c`).
    */
   whole?: boolean;
+  /** The value is called: `euro(…)`, `kunde.format()`. */
+  called?: boolean;
+  /**
+   * The value is an operand of a calculation: `'number'` for `- * / %` and
+   * the unary sign (a number), `'add'` for `+` (a number or text).
+   */
+  operand?: 'number' | 'add';
 };
 
 const rangeOf = (token: Token): SourceRange => ({
@@ -247,10 +254,17 @@ export class TemplateExpression {
    */
   references(asValue = true): ExpressionReference[] {
     const refs: ExpressionReference[] = [];
-    const visit = (node: Node, bound: string[], whole: boolean): void => {
+    const visit = (
+      node: Node,
+      bound: string[],
+      whole: boolean,
+      operand?: 'number' | 'add',
+    ): void => {
       const path = staticPath(node);
       if (path) {
-        if (!bound.includes(path.name)) refs.push({ ...path, whole });
+        if (!bound.includes(path.name)) {
+          refs.push({ ...path, whole, ...(operand && { operand }) });
+        }
         return;
       }
       switch (node.type) {
@@ -259,18 +273,36 @@ export class TemplateExpression {
           visit(node.object, bound, true);
           visit(node.property, bound, false);
           return;
-        case 'call':
-          visit(node.callee, bound, false);
+        case 'call': {
+          const callee = staticPath(node.callee);
+          if (callee) {
+            if (!bound.includes(callee.name)) {
+              refs.push({ ...callee, whole: false, called: true });
+            }
+          } else {
+            visit(node.callee, bound, false);
+          }
           node.args.forEach((arg) => visit(arg, bound, true));
           return;
+        }
         case 'unary':
-          visit(node.arg, bound, false);
+          visit(
+            node.arg,
+            bound,
+            false,
+            node.op === '-' || node.op === '+' ? 'number' : undefined,
+          );
           return;
         case 'binary': {
           // `a || b`, `a ?? b`: the result is one of the operands
           const passes = ['&&', '||', '??'].includes(node.op) && whole;
-          visit(node.left, bound, passes);
-          visit(node.right, bound, passes);
+          const operand = ['-', '*', '/', '%', '**'].includes(node.op)
+            ? 'number'
+            : node.op === '+'
+              ? 'add'
+              : undefined;
+          visit(node.left, bound, passes, operand);
+          visit(node.right, bound, passes, operand);
           return;
         }
         case 'cond':

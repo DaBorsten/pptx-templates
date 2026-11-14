@@ -6,6 +6,19 @@ semver, with the pre-1.0 convention that **breaking changes bump the minor**.
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-11-14
+
+### Added
+
+- `templateDataSkeleton` and `pptx-templates init`: example data built from
+  the tags of one or more templates, every read path with a placeholder
+  (the path as text, `true` for tested values, `1` for numbers, a
+  one-entry list for loops). Several decks give one combined file. An
+  existing data file is completed, not replaced: its values stay, missing
+  fields are added. Without file arguments, `init` writes every data file
+  of `pptx-templates.json` from the decks mapped to it. Called names
+  (`{{money(x)}}`) are reported as helpers instead of data.
+
 ### Changed
 
 - Docs site: new design. One neutral grey scale with an orange accent used
@@ -220,7 +233,8 @@ for that history.
   into one `.png` part. The fallback now gets the same placeholder PNG that
   pptxgenjs 3.12 wrote.
 
-[Unreleased]: https://github.com/DaBorsten/pptx-templates/compare/v0.3.2...HEAD
+[Unreleased]: https://github.com/DaBorsten/pptx-templates/compare/v0.3.3...HEAD
+[0.3.3]: https://github.com/DaBorsten/pptx-templates/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/DaBorsten/pptx-templates/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/DaBorsten/pptx-templates/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/DaBorsten/pptx-templates/compare/v0.2.1...v0.3.0

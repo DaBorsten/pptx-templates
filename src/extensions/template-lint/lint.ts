@@ -27,6 +27,7 @@ import {
   DataUsageRecorder,
   TemplateDataUsage,
 } from './usage';
+import { DataSkeletonRecorder, TemplateDataSkeleton } from './skeleton';
 
 /** One stretch of runs: a tag must sit within it (renderer tokenizing). */
 type Segment = { text: string; paragraph: XmlElement; cell?: number };
@@ -44,6 +45,26 @@ type OpenBlock = {
 
 /** Keys from the data root; `[]` stands for every entry of a list. */
 type DataPath = string[];
+
+/** How a tag uses a path, beyond reading it. */
+export type PathUse = {
+  /** The path is called as a function (`euro(…)`). */
+  called?: boolean;
+  /** Operand of `- * / %` (`'number'`) or of `+` (`'add'`). */
+  operand?: 'number' | 'add';
+};
+
+/** Collects the data paths the tags read (usage, data skeleton). */
+export type UsageSink = {
+  record(
+    keys: string[],
+    whole: boolean,
+    location: DataUsageLocation,
+    use?: PathUse,
+  ): void;
+  /** `{{FOR x IN keys}}` iterates over this path. */
+  recordList?(keys: string[]): void;
+};
 
 type IssueInput = Omit<TemplateLintIssue, 'part' | 'slide'>;
 
@@ -212,7 +233,7 @@ class TemplateLinter {
 
   constructor(
     options: LintTemplateOptions,
-    private readonly usage?: DataUsageRecorder,
+    private readonly usage?: UsageSink,
   ) {
     this.syntax = tagSyntax(options);
     this.fixQuotes = options.fixSmartQuotes ?? false;
@@ -397,6 +418,7 @@ class TemplateLinter {
               const expr = check(command.code, false);
               const listPath = this.dataPathOf(expr?.path(), paths);
               const entryPath = listPath && [...listPath, '[]'];
+              if (listPath) this.usage?.recordList?.(listPath);
               const element = this.loopElement(expr, loopVars, execNames);
               if (!element) {
                 tagReport({
@@ -680,7 +702,12 @@ class TemplateLinter {
     if (!this.usage) return;
     for (const ref of expr.references(asValue)) {
       const path = this.dataPathOf(ref, paths);
-      if (path) this.usage.record(path, !!ref.whole, this.location);
+      if (path) {
+        this.usage.record(path, !!ref.whole, this.location, {
+          called: ref.called,
+          operand: ref.operand,
+        });
+      }
     }
   }
 
@@ -829,10 +856,42 @@ export const collectDataUsage = async (
   return usage.result();
 };
 
+/**
+ * Example data for one or more templates: every path their tags read, with
+ * a placeholder value, combined over all decks. A starting point for the
+ * data file of `lint --data` and for trying `renderTemplate`.
+ *
+ * @param pptx Path(s) to .pptx files or their contents.
+ */
+export const templateDataSkeleton = async (
+  pptx:
+    | string
+    | Buffer
+    | Uint8Array
+    | ArrayBuffer
+    | (string | Buffer | Uint8Array | ArrayBuffer)[],
+  options: Omit<LintTemplateOptions, 'data' | 'schema'> = {},
+): Promise<TemplateDataSkeleton> => {
+  const decks = Array.isArray(pptx) ? pptx : [pptx];
+  // Without data, every name counts as data, except the helpers
+  const lintOptions: LintTemplateOptions = {
+    ...options,
+    data: undefined,
+    schema: undefined,
+  };
+  const recorder = new DataSkeletonRecorder();
+  let errorCount = 0;
+  for (const deck of decks) {
+    const linter = await runLinter(deck, lintOptions, recorder);
+    errorCount += linter.issues.filter((i) => i.severity === 'error').length;
+  }
+  return recorder.result(errorCount);
+};
+
 const runLinter = async (
   pptx: string | Buffer | Uint8Array | ArrayBuffer,
   options: LintTemplateOptions,
-  usage?: DataUsageRecorder,
+  usage?: UsageSink,
 ): Promise<TemplateLinter> => {
   const content = typeof pptx === 'string' ? fs.readFileSync(pptx) : pptx;
   const zip = await JSZip.loadAsync(content);

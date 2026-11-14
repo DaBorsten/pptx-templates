@@ -183,7 +183,7 @@ const fromSchema = (root: JsonSchema): TreeNode => {
 
 const IDENTIFIER = /^[\p{L}_$][\p{L}\p{N}_$]*$/u;
 
-const formatPath = (keys: string[]): string =>
+export const formatPath = (keys: string[]): string =>
   keys
     .map((key, i) => {
       if (key === '[]') return '[]';
