@@ -6,6 +6,8 @@ semver, with the pre-1.0 convention that **breaking changes bump the minor**.
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-11-14
+
 ### Added
 
 - `templateDataSkeleton` and `pptx-templates init`: example data built from
@@ -231,7 +233,8 @@ for that history.
   into one `.png` part. The fallback now gets the same placeholder PNG that
   pptxgenjs 3.12 wrote.
 
-[Unreleased]: https://github.com/DaBorsten/pptx-templates/compare/v0.3.2...HEAD
+[Unreleased]: https://github.com/DaBorsten/pptx-templates/compare/v0.3.3...HEAD
+[0.3.3]: https://github.com/DaBorsten/pptx-templates/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/DaBorsten/pptx-templates/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/DaBorsten/pptx-templates/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/DaBorsten/pptx-templates/compare/v0.2.1...v0.3.0
