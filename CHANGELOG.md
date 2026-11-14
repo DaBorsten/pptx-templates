@@ -6,6 +6,18 @@ semver, with the pre-1.0 convention that **breaking changes bump the minor**.
 
 ## [Unreleased]
 
+### Changed
+
+- Docs site: new design. One neutral grey scale with an orange accent used
+  sparingly, Geist and Geist Mono (self-hosted), framed code panels with a
+  quiet syntax theme, restyled sidebar, table of contents, tables and
+  footer, and a matching dark mode. The sidebar is grouped into sections
+  (Get started, Modify content, Templates, Build decks, Help, Reference);
+  the navbar shows the version and npm/GitHub as icons. URLs, llms.txt and
+  the Markdown twins are unchanged.
+- npm package page links the docs site (`homepage` in `package.json`)
+  instead of the GitHub README.
+
 ## [0.3.2] - 2026-11-13
 
 ### Added

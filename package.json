@@ -2,6 +2,7 @@
   "name": "pptx-templates",
   "version": "0.3.2",
   "description": "A template based pptx generator",
+  "homepage": "https://daborsten.github.io/pptx-templates/",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/DaBorsten/pptx-templates.git"
