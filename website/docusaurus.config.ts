@@ -3,6 +3,8 @@ import type * as Preset from '@docusaurus/preset-classic';
 import { themes as prismThemes } from 'prism-react-renderer';
 import * as path from 'path';
 import llmsTxtPlugin from './plugins/llms-txt';
+import { monoLight, monoDark } from './src/fork/prism-themes'; // fork extension (see FORK.md)
+import { forkNavbarItems } from './src/fork/navbar'; // fork extension (see FORK.md)
 
 // The docs corpus lives at the repo root (`docs/`), not inside `website/`,
 // so it stays covered by `__tests__/docs-examples.test.ts` and readable on
@@ -43,7 +45,7 @@ const config: Config = {
         docs: {
           path: '../docs',
           routeBasePath: '/',
-          sidebarPath: './sidebars.ts',
+          sidebarPath: './src/fork/sidebars.ts',
           editUrl: ({ docPath }) =>
             // typedoc output is generated — no edit link
             docPath.startsWith('api/')
@@ -53,7 +55,7 @@ const config: Config = {
         blog: false,
         pages: false,
         theme: {
-          customCss: './src/css/custom.css',
+          customCss: ['./src/css/custom.css', './src/css/fork-theme.css'],
         },
       } satisfies Preset.Options,
     ],
@@ -96,7 +98,7 @@ const config: Config = {
   themeConfig: {
     navbar: {
       title: 'pptx-templates',
-      items: [
+      items: forkNavbarItems([
         {
           type: 'docSidebar',
           sidebarId: 'docs',
@@ -118,7 +120,7 @@ const config: Config = {
           label: 'GitHub',
           position: 'right',
         },
-      ],
+      ]),
     },
     footer: {
       style: 'dark',
@@ -151,8 +153,8 @@ const config: Config = {
       copyright: `Copyright © ${new Date().getFullYear()} Boas Rautmann. MIT licensed.`,
     },
     prism: {
-      theme: prismThemes.github,
-      darkTheme: prismThemes.dracula,
+      theme: monoLight,
+      darkTheme: monoDark,
       // the docs' code blocks are TypeScript throughout
       defaultLanguage: 'typescript',
       additionalLanguages: ['bash', 'json'],

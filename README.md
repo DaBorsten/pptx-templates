@@ -24,14 +24,14 @@ AI assistants consuming this library should read [AI-INSTRUCTOR.md](https://gith
 
 ## Installation
 
-```
-$ yarn add pptx-templates
+```bash
+yarn add pptx-templates
 ```
 
 or
 
-```
-$ npm install pptx-templates
+```bash
+npm install pptx-templates
 ```
 
 If `npm audit` reports `image-size`, see [Getting started](https://daborsten.github.io/pptx-templates/getting-started): the advisory is not reachable and an `overrides` entry silences it.

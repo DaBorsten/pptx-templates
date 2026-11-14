@@ -11,14 +11,14 @@ There are basically two ways to use `pptx-templates`.
 
 If you are working on an existing project, you can add `pptx-templates` to it using npm or yarn. Run
 
-```
-$ yarn add pptx-templates
+```bash
+yarn add pptx-templates
 ```
 
 or
 
-```
-$ npm install pptx-templates
+```bash
+npm install pptx-templates
 ```
 
 in the root folder of your project. This will download and install the most recent version into your existing project.
@@ -47,16 +47,16 @@ afterwards.
 
 If you want to see how it works and you like to run own tests, you should clone the [repository](https://github.com/DaBorsten/pptx-templates) and install the dependencies:
 
-```
-$ git clone git@github.com:DaBorsten/pptx-templates.git
-$ cd pptx-templates
-$ yarn install
+```bash
+git clone git@github.com:DaBorsten/pptx-templates.git
+cd pptx-templates
+yarn install
 ```
 
 You can now run
 
-```
-$ yarn dev
+```bash
+yarn dev
 ```
 
 and see the most recent feature from `src/dev.ts`. Every time you change & save this file, you will see new console output and a pptx file in the destination folder. Take a look into the [`__tests__`-directory](https://github.com/DaBorsten/pptx-templates/blob/main/__tests__) to see a lot of examples for several use cases!
