@@ -17,6 +17,13 @@ semver, with the pre-1.0 convention that **breaking changes bump the minor**.
   the Markdown twins are unchanged.
 - npm package page links the docs site (`homepage` in `package.json`)
   instead of the GitHub README.
+- README rewritten around templating in the .pptx file: tags, tables,
+  linter, then the code API. New npm `description` and `keywords`.
+- Removed the `npm audit` / `image-size` note from README and Getting
+  started: since 0.2.1 the package no longer installs `image-size`.
+- Docs: installing the package shows npm and Bun, working on a clone of
+  the repository (install, dev, tests, validation) uses Bun instead of
+  Yarn.
 
 ## [0.3.2] - 2026-11-13
 

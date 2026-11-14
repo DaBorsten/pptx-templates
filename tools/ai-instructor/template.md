@@ -1,6 +1,6 @@
 <!-- GENERATED FILE — do not edit AI-INSTRUCTOR.md directly.
      Source: tools/ai-instructor/template.md + the docs/ pages it includes.
-     Rebuild: yarn docs:ai   (drift is caught by __tests__/ai-instructor.test.ts) -->
+     Rebuild: bun run docs:ai (drift is caught by __tests__/ai-instructor.test.ts) -->
 
 # AI Instructor: Generating PowerPoint with pptx-templates
 
