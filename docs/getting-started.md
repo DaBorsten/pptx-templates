@@ -9,39 +9,19 @@ There are basically two ways to use `pptx-templates`.
 
 ### As a Package
 
-If you are working on an existing project, you can add `pptx-templates` to it using npm or yarn. Run
-
-```bash
-yarn add pptx-templates
-```
-
-or
+If you are working on an existing project, you can add `pptx-templates` to it using npm or Bun. Run
 
 ```bash
 npm install pptx-templates
 ```
 
-in the root folder of your project. This will download and install the most recent version into your existing project.
+or
 
-#### `npm audit` reports `image-size`
-
-`npm audit` reports high-severity advisories for `image-size`
-([GHSA-5p2g-fcmc-qvqq](https://github.com/advisories/GHSA-5p2g-fcmc-qvqq),
-[GHSA-w3rx-r6r6-pgpr](https://github.com/advisories/GHSA-w3rx-r6r6-pgpr)),
-reached through `pptx-templates` → `pptxgenjs`. Your project is not exposed to them:
-`pptxgenjs` declares `image-size ^1.2.1` but never loads it, and `pptx-templates`
-measures images with its own code. The fix (2.0.3+) is outside the range `pptxgenjs`
-accepts, and a library cannot override its dependencies' versions for you, so silence
-the report in your own `package.json`:
-
-```json
-"overrides": {
-  "image-size": "^2.0.4"
-}
+```bash
+bun add pptx-templates
 ```
 
-With Yarn, use `"resolutions"` instead of `"overrides"`. Run `npm install` again
-afterwards.
+in the root folder of your project. This will download and install the most recent version into your existing project.
 
 ### As a Cloned Repository
 
@@ -50,13 +30,13 @@ If you want to see how it works and you like to run own tests, you should clone 
 ```bash
 git clone git@github.com:DaBorsten/pptx-templates.git
 cd pptx-templates
-yarn install
+bun install
 ```
 
 You can now run
 
 ```bash
-yarn dev
+bun run dev
 ```
 
 and see the most recent feature from `src/dev.ts`. Every time you change & save this file, you will see new console output and a pptx file in the destination folder. Take a look into the [`__tests__`-directory](https://github.com/DaBorsten/pptx-templates/blob/main/__tests__) to see a lot of examples for several use cases!

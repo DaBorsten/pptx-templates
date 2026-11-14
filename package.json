@@ -1,7 +1,7 @@
 {
   "name": "pptx-templates",
   "version": "0.3.2",
-  "description": "A template based pptx generator",
+  "description": "Fill PowerPoint templates with data: tags, conditions and loops written into the slides, rendered from JavaScript or TypeScript",
   "homepage": "https://daborsten.github.io/pptx-templates/",
   "repository": {
     "type": "git",
@@ -41,21 +41,19 @@
   },
   "types": "dist/index.d.ts",
   "keywords": [
-    "js-create-powerpoint",
-    "js-create-pptx",
-    "js-generate-powerpoint",
-    "js-pptx",
-    "js-produce-powerpoint",
-    "js-powerpoint",
-    "powerpoint",
-    "powerpoint-charts",
-    "powerpoint-presentation",
-    "powerpoint-automation",
-    "powerpoint-generator",
-    "powerpoint-templates",
-    "pptxgenjs-templates",
     "pptx",
-    "presentations"
+    "powerpoint",
+    "pptx-template",
+    "powerpoint-template",
+    "templating",
+    "template-engine",
+    "data-driven",
+    "pptx-generator",
+    "powerpoint-generator",
+    "powerpoint-automation",
+    "presentation",
+    "openxml",
+    "template-linter"
   ],
   "devDependencies": {
     "@eslint/js": "^10.0.1",

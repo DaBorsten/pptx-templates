@@ -65,6 +65,7 @@ merge:
 | `package.json` | dependency ranges; `test`, `test-coverage`, `test:visual` run `node --experimental-vm-modules node_modules/jest/bin/jest.js` | pptxgenjs 4 loads `node:fs`/`node:https` via `import()`, which Jest only allows with that flag |
 | `package.json` | `bin` entry `pptx-templates` → `dist/extensions/cli/index.js` (added, not changed) | `npx pptx-templates lint`, see `src/extensions/cli/` |
 | `package.json` | `homepage` → `https://daborsten.github.io/pptx-templates/` (added, not changed) | npm links the docs site instead of falling back to `<repository>#readme` |
+| `package.json`, `README.md` | `description` and `keywords` rewritten; README rewritten around the template tags | the npm page and README describe the fork's templating, not upstream's API |
 | `package.json` | `validate:pptx` runs `node tools/fork/validate-pptx.mjs` | upstream's inline `docker run -v "$PWD:…"` fails in cmd and PowerShell, where `$PWD` is not expanded |
 | `src/helper/generate/generate-pptxgenjs.ts` | 1 import + `repairSvgFallbacks(...)` around `this.generator.stream()` | pptxgenjs 4 writes SVG bytes into the PNG fallback, see `src/extensions/pptxgenjs-compat/` |
 | `tsconfig.json` | `strict: false` explicit, `moduleResolution: bundler`, `rootDir: src`, `lib: es2022`, `baseUrl` removed | TypeScript 6 defaults (`strict` on, `rootDir`) and deprecations (`node10`, `baseUrl`); `es2022` for `Error` `cause` |
@@ -75,6 +76,7 @@ merge:
 | `src/helper/xml-relationship-helper.ts`, `src/helper/xml-template-helper.ts`, `src/helper/modify-image-helper.ts` | `.replace('../', …)` → `.replace(/^\.\.\//, …)`; filename regex `/^(.+?)(\d+)*$/` → `/^(.+?)(\d*)$/` | CodeQL `js/incomplete-sanitization` and `js/redos`; same results for every real target |
 | `AGENTS.md` | single-test command `yarn test <file>` | plain `npx jest` lacks the flag |
 | `AGENTS.md` | one note: the fork uses Bun, read `yarn <script>` as `bun run <script>` | upstream docs and comments keep saying `yarn`; rewriting them all would conflict on every merge |
+| `docs/getting-started.md`, `docs/testing.md`, `docs/troubleshooting.md`, `tools/ai-instructor/template.md` | commands: package install `npm install` / `bun add`, repository work `bun install` / `bun run <script>` instead of `yarn` | the user-facing docs show the commands that work in the fork; other upstream comments keep `yarn` |
 | `package.json` | `packageManager: bun@…`, `docs:*` scripts use `bun run --cwd website`, `dev` runs `bun --watch src/dev.ts` (no nodemon) | the fork uses Bun; it reads upstream's `resolutions` as overrides, so they stay unchanged |
 | `package.json` | `build` deletes `dist` with `fs.rmSync` instead of `rm -rf`; `prettier` without single quotes | `bun run` handles both, but `npm run` on Windows uses `cmd.exe`, which has no `rm` and passes single quotes through literally; every script must run from cmd, PowerShell and bash |
 | `yarn.lock`, `website/yarn.lock` | deleted, replaced by `bun.lock` (`bunfig.toml` keeps `node_modules` hoisted like Yarn 1) | `sync-upstream.sh` deletes them again when upstream touches them |
