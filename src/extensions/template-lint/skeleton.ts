@@ -11,9 +11,15 @@ export type TemplateDataSkeleton = {
    * The data: objects for paths with properties, a list with one entry for
    * `FOR` and list methods, `true` for values that are only tested
    * (`{{IF kunde.vip}}`), `1` for numbers (`preis.toFixed(2)`) and the path
-   * itself as text for everything that is output (`"kunde.name"`).
+   * itself as text for everything that is output (`"kunde.name"`). A
+   * picture (`{{IMAGE logo}}`) is `null`: it needs a file path or data.
    */
   data: Record<string, unknown>;
+  /**
+   * Paths `{{IMAGE …}}` places as pictures (`logo`, `produkte[].foto`):
+   * the value itself, the `data` of an object, either side of `a ? b : c`.
+   */
+  images: string[];
   /**
    * Names called as functions (`{{euro(preis)}}`): helpers, not data. Pass
    * them as `additionalJsContext`.
@@ -30,6 +36,7 @@ type SkeletonNode = {
   /** Output or passed on, not only tested. */
   output: boolean;
   number: boolean;
+  image?: boolean;
 };
 
 const create = (): SkeletonNode => ({
@@ -48,6 +55,7 @@ const has = (proto: object, key: string) =>
 export class DataSkeletonRecorder {
   private readonly root = create();
   private readonly functions = new Set<string>();
+  private readonly images = new Set<string>();
 
   constructor() {
     this.root.kind = 'object';
@@ -112,6 +120,23 @@ export class DataSkeletonRecorder {
     this.asList(node);
   }
 
+  recordImage(keys: string[]): void {
+    if (!keys.length || keys.some(isForbiddenKey)) return;
+    this.images.add(formatPath(keys));
+    let node = this.root;
+    for (const key of keys) {
+      if (key === '[]' || isIndex(key)) {
+        if (node.kind !== 'list') return;
+        node = node.element;
+        continue;
+      }
+      if (node.kind !== 'object') return;
+      node = node.children.get(key);
+      if (!node) return;
+    }
+    if (node.kind !== 'object' && node.kind !== 'list') node.image = true;
+  }
+
   /** Makes `node` a list (unless it has fields); returns its entry. */
   private asList(node: SkeletonNode): SkeletonNode {
     if (node.kind === 'object') return create();
@@ -156,6 +181,7 @@ export class DataSkeletonRecorder {
       if (node?.kind === 'list') {
         return [value(node.element, [...keys, '[]'])];
       }
+      if (node?.image) return null;
       if (node?.number) return 1;
       if (node && !node.output) return true;
       return formatPath(keys);
@@ -163,6 +189,7 @@ export class DataSkeletonRecorder {
     return {
       data: value(this.root, []) as Record<string, unknown>,
       functions: [...this.functions],
+      images: [...this.images],
       errorCount,
     };
   }

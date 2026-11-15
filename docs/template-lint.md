@@ -288,6 +288,7 @@ The placeholders:
 | only test it: `{{IF user.vip}}` | `true` |
 | call a number method or calculate with it: `{{item.price.toFixed(2)}}`, `{{total * 2}}` | `1` |
 | loop over it or call a list method: `{{FOR i IN items}}`, `{{tags.join(', ')}}` | a list with one entry |
+| place it as a picture: `{{IMAGE logo}}`, `{{IMAGE ({ data: logo })}}` | `null`, and the path is listed in `images` |
 
 Loops and EXEC names are traced back to the data as in
 [data usage](#data-usage). Names that are called (`{{money(total)}}`) are

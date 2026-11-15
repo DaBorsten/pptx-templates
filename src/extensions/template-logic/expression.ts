@@ -386,6 +386,37 @@ export class TemplateExpression {
   }
 
   /**
+   * Paths an `{{IMAGE …}}` value can come from: the value itself
+   * (`logo`), the `data` of an object (`({ data: logo, width: 4 })`) and
+   * both branches of `a ? b : c`, `a ?? b` and `a || b`.
+   */
+  imageSources(): ExpressionReference[] {
+    const found: ExpressionReference[] = [];
+    const visit = (node: Node) => {
+      const ref = staticPath(node);
+      if (ref) {
+        found.push(ref);
+      } else if (node.type === 'object') {
+        const data = node.entries.find(
+          (e) => e.key.type === 'lit' && e.key.value === 'data',
+        );
+        if (data) visit(data.value);
+      } else if (node.type === 'cond') {
+        visit(node.then);
+        visit(node.else);
+      } else if (
+        node.type === 'binary' &&
+        (node.op === '??' || node.op === '||')
+      ) {
+        visit(node.left);
+        visit(node.right);
+      }
+    };
+    visit(this.ast);
+    return found;
+  }
+
+  /**
    * While parsing, the error points at the current token (or the end of
    * the source); the tokenizer passes its own range.
    */

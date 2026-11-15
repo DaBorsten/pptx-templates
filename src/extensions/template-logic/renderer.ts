@@ -820,7 +820,7 @@ export class TemplateRenderer {
                 'modifyElement() callbacks cannot add media files',
             );
           }
-          return loadImage(value);
+          return loadImage(value, this.options.imageRoot);
         });
         if (!image || typeof image !== 'object' || !('content' in image)) break;
         const pending = this.pendingImages.get(body) ?? [];

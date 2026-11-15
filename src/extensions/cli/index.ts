@@ -5,6 +5,7 @@
 import { CliIO, runLintCommand, supportsColor } from '../template-lint/cli';
 import { runInitCommand } from '../template-lint/init-cli';
 import { runUsageCommand } from '../template-lint/usage-cli';
+import { runRenderCommand } from '../template-render/cli';
 
 const USAGE = `Usage: pptx-templates <command> [options]
 
@@ -12,6 +13,7 @@ Commands:
   lint <file.pptx>...    Check the {{…}} tags of templates
   usage <file.pptx>...   Show which data fields the tags read, and which not
   init <file.pptx>...    Write example data with every field the tags read
+  render <file.pptx>     Fill the tags with data and write a new .pptx
 
 Run pptx-templates <command> --help for the options of a command.`;
 
@@ -20,6 +22,7 @@ export const runCli = async (args: string[], io: CliIO): Promise<number> => {
   if (command === 'lint') return runLintCommand(rest, io);
   if (command === 'usage') return runUsageCommand(rest, io);
   if (command === 'init') return runInitCommand(rest, io);
+  if (command === 'render') return runRenderCommand(rest, io);
   if (command === '-h' || command === '--help') {
     io.stdout(`${USAGE}\n`);
     return 0;

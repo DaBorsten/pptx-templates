@@ -93,7 +93,26 @@ tables) are not commands: `renderTemplate` leaves them in the text, so
 
 ## Images
 
-`{{IMAGE …}}` takes an object like in docx-templates:
+`{{IMAGE …}}` takes the picture itself or an object like in docx-templates.
+The picture can be a `Buffer`, a data URL, or a file path relative to the
+`imageRoot` option, so the template needs no code:
+
+```ts
+import fs from 'fs';
+import { renderDeck } from 'pptx-templates';
+
+await renderDeck('templates/Offer.pptx', {
+  vip: true,
+  logoVip: fs.readFileSync('images/vip.png'), // a Buffer …
+  logoStandard: 'images/standard.png', // … or a path below imageRoot
+}, { imageRoot: process.cwd() });
+```
+
+```text
+{{IF vip}}{{IMAGE logoVip}}{{ELSE}}{{IMAGE logoStandard}}{{END-IF}}
+```
+
+The object form adds size, shape and border:
 
 ```ts
 import fs from 'fs';
@@ -118,8 +137,8 @@ pres.addSlide('TextReplace.pptx', 1, (slide) => {
 
 | Property | Effect |
 |---|---|
-| `data` | `Buffer`, `ArrayBuffer`, base64 string or data URL (`data:image/png;base64,…`) |
-| `extension` | `.png`, `.jpg`, `.jpeg` or `.gif`. Optional for data URLs |
+| `data` | `Buffer`, `ArrayBuffer`, base64 string, data URL (`data:image/png;base64,…`) or file path below `imageRoot` (`images/logo.png`) |
+| `extension` | `.png`, `.jpg`, `.jpeg` or `.gif`. Optional: taken from a data URL or path, else from the first bytes of the data |
 | `width`, `height` | Size in cm. With only one of them, the other keeps the aspect ratio. Without both, the picture fits into the shape, keeping its aspect ratio |
 | `alt` | Alternative text |
 | `rotation` | Rotation in degrees, clockwise |
@@ -136,6 +155,10 @@ the shape is removed and only the pictures remain.
 
 - The shape needs its own position and size. Placeholders that inherit
   them from the layout are not supported.
+- A string that ends in `.png`, `.jpg`, `.jpeg` or `.gif` is a file path
+  (base64 has no dot). It is read from `imageRoot` and cannot leave that
+  folder; without `imageRoot` it is an error. `null`, `undefined` and `''`
+  place nothing.
 - `IMAGE` in table cells is not supported.
 - Identical images are stored only once in the output.
 - `IMAGE` writes a media file, so it needs `slide.modify(modify.renderTemplate(…))`.
@@ -248,6 +271,47 @@ pres.addSlide('TextReplace.pptx', 1, (slide) => {
 | `failFast` | `true` | `false`: keep going and throw one error listing all failed commands at the end |
 | `processLineBreaks` | `true` | Turn `\n` in inserted values into line breaks |
 | `fixSmartQuotes` | `false` | Replace typographic quotes (`“ ” „ ‘ ’ ‚`) with straight ones before parsing, as in docx-templates |
+| `imageRoot` | | Folder that file paths in `{{IMAGE}}` values are read from (`"images/logo.png"`). Paths cannot leave it |
+
+## Rendering a whole deck
+
+When every slide of a template is filled with the same data, `renderDeck`
+saves the `addSlide` loop: it renders the tags of each slide and returns the
+new .pptx as a `Buffer`. Masters, layouts and the slide order stay as they
+are in the template.
+
+```ts
+import fs from 'fs';
+import { renderDeck } from 'pptx-templates';
+
+const pptx = await renderDeck(
+  'templates/Offer.pptx',
+  { customer: { name: 'Ada', vip: true }, items: [] },
+  { additionalJsContext: { euro: (n: number) => `${n.toFixed(2)} €` } },
+);
+fs.writeFileSync('output/Offer-Ada.pptx', pptx);
+```
+
+It takes the [options](#options) of `renderTemplate`, plus `slides` to keep
+only some slides in a new order (`slides: [3, 1]`). A tag that fails rejects
+with a `TemplateRenderError` whose message starts with the slide number:
+`slide 2: {{euro(p.preis)}}: Not a function …`.
+
+The same from the command line:
+
+```bash
+npx pptx-templates render templates/Offer.pptx --data data.json -o output/Offer-Ada.pptx
+npx pptx-templates render templates/Offer.pptx --data data.json --helpers helpers.js -o out.pptx --slides 3,1
+```
+
+Picture paths in the data (`{ "logo": "images/logo.png" }` with
+`{{IMAGE logo}}`) are read relative to the folder of the data file;
+`--image-root <dir>` sets another folder.
+
+`--helpers` loads a JavaScript module whose exports the tags can call, such
+as `module.exports = { euro: (n) => n.toFixed(2) + ' €' }`. It runs as code,
+so only pass files you trust. The exit code is `0` when the file was written,
+`1` when a tag failed and `2` for an invalid call or an unreadable file.
 
 ## Listing the commands of a template
 

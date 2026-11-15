@@ -190,6 +190,9 @@ misspelled field names (`user.nmae` → *did you mean "name"?*).
   ones no tag reads.
 - `npx pptx-templates init` writes example data with every field the tags
   read, combined over several decks; run again, it only adds what is missing.
+- `npx pptx-templates render deck.pptx --data data.json -o out.pptx` fills
+  every slide with the data, to see the result without writing code
+  (`renderDeck()` from code).
 - A `pptx-templates.json` maps many decks to their data, for example one data
   file per language for every customer folder:
 

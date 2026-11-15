@@ -54,6 +54,13 @@ export type RenderTemplateOptions = {
    * (`'Ada’s'` then ends after `Ada`). Default: false
    */
   fixSmartQuotes?: boolean;
+  /**
+   * Folder that file paths in `{{IMAGE …}}` values are read from:
+   * `{ "logo": "images/logo.png" }` with `{{IMAGE logo}}`. Paths cannot
+   * leave it. Without it, a path is an error. The CLI uses the folder of
+   * the data file.
+   */
+  imageRoot?: string;
 };
 
 export type TemplateCommandType =
@@ -72,9 +79,15 @@ export type TemplateCommandType =
 
 /** Value of an `{{IMAGE …}}` tag (docx-templates compatible). */
 export type TemplateImage = {
-  /** Image contents: Buffer, ArrayBuffer, base64 string or data URL. */
+  /**
+   * Image contents: Buffer, ArrayBuffer, base64 string, data URL, or a
+   * file path relative to the `imageRoot` option (`images/logo.png`).
+   */
   data: Buffer | ArrayBuffer | Uint8Array | string;
-  /** '.png', '.jpg', '.jpeg' or '.gif'; optional for data URLs. */
+  /**
+   * '.png', '.jpg', '.jpeg' or '.gif'. Optional: taken from a data URL or
+   * file path, else from the first bytes of the data.
+   */
   extension?: string;
   /** Width in cm. Omit both: fit into the shape, keeping the aspect ratio. */
   width?: number;

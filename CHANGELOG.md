@@ -6,6 +6,26 @@ semver, with the pre-1.0 convention that **breaking changes bump the minor**.
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-11-15
+
+### Added
+
+- `renderDeck` and `pptx-templates render`: fill the tags of every slide of
+  a template with one set of data and get the new .pptx, without writing the
+  `addSlide` loop. `slides` (`--slides 3,1`) keeps only some slides, in that
+  order; `--helpers` loads a module whose exports the tags can call. A
+  failing tag names its slide (`slide 2: {{euro(p.preis)}}: …`); the command
+  exits with `1` then.
+- `{{IMAGE logo}}`: the value can be the picture itself (a Buffer, a data
+  URL or a file path) instead of `{ data, extension }`. A path such as
+  `"images/logo.png"` is read from the new `imageRoot` option and cannot
+  leave that folder; `pptx-templates render` uses the folder of the data
+  file, `--image-root` another one. `extension` is optional everywhere: the
+  type comes from the first bytes of the data.
+- `templateDataSkeleton` lists the paths `{{IMAGE}}` places in `images`
+  (also `({ data: x })` and both sides of `a ? b : c`) and gives them
+  `null` instead of their path as text.
+
 ## [0.3.3] - 2026-11-14
 
 ### Added
@@ -233,7 +253,8 @@ for that history.
   into one `.png` part. The fallback now gets the same placeholder PNG that
   pptxgenjs 3.12 wrote.
 
-[Unreleased]: https://github.com/DaBorsten/pptx-templates/compare/v0.3.3...HEAD
+[Unreleased]: https://github.com/DaBorsten/pptx-templates/compare/v0.3.4...HEAD
+[0.3.4]: https://github.com/DaBorsten/pptx-templates/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/DaBorsten/pptx-templates/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/DaBorsten/pptx-templates/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/DaBorsten/pptx-templates/compare/v0.3.0...v0.3.1
