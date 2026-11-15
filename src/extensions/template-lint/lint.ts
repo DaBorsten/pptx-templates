@@ -33,6 +33,8 @@ import { DataSkeletonRecorder, TemplateDataSkeleton } from './skeleton';
 const BUILTIN_HELPERS: Record<string, unknown> = {
   flow: (list: unknown) => list,
   flowRest: (): unknown[] => [],
+  flowPage: 1,
+  flowPages: 1,
 };
 
 /** One stretch of runs: a tag must sit within it (renderer tokenizing). */

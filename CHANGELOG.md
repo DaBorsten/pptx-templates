@@ -19,8 +19,14 @@ semver, with the pre-1.0 convention that **breaking changes bump the minor**.
   layout, master and theme. Fonts come from the system font folders and
   the new `fonts` option; metric-compatible fonts stand in for missing
   ones (Liberation Sans for Arial, Carlito for Calibri, …).
-  `flowRest(list)` returns the entries that fit nowhere; they are logged
-  as a warning, or rejected with `flowOverflow: 'error'`.
+  A list longer than the boxes continues on copies of the slide:
+  `renderDeck` and `pptx-templates render` add them by themselves; with
+  `addSlide`, `countFlowPages(pptx, slide, data)` tells how many there
+  are and the `flowPage` option picks the part each copy shows.
+  `flowPage` and `flowPages` in the template number the copies,
+  `flowRest(list)` returns the entries after the current slide. Without
+  `flowPage`, entries that need another slide are logged as a warning, or
+  rejected with `flowOverflow: 'error'`.
 - The linter and `templateDataSkeleton` know `flow()` and `flowRest()`:
   no "unknown variable" for them, and the entries of `flow(items)` are
   traced to `items[]`.

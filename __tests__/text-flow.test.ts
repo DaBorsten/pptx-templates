@@ -1,5 +1,7 @@
 import Automizer, {
+  countFlowPages,
   lintTemplate,
+  renderDeck,
   modify,
   RenderTemplateOptions,
   templateDataSkeleton,
@@ -7,6 +9,7 @@ import Automizer, {
 import { FontRegistry } from '../src/extensions/text-flow/fonts';
 import { flowArguments } from '../src/extensions/text-flow';
 import { expectXml } from './helpers/expect-xml';
+import JSZip from 'jszip';
 
 // removeExistingSlides keeps the template's slide1.xml: the new slide is #2
 const SLIDE = 'ppt/slides/slide2.xml';
@@ -306,4 +309,151 @@ test('the linter knows flow() and traces its list', async () => {
     items: [{ title: 'items[].title', text: 'items[].text' }],
   });
   expect(skeleton.functions).toEqual([]);
+});
+
+/**
+ * A template deck: one slide with three flow boxes and a header that shows
+ * the page, built with generate() and written without rendering.
+ */
+const writeFlowTemplate = async (file: string): Promise<string> => {
+  const automizer = new Automizer({
+    templateDir: `${__dirname}/pptx-templates`,
+    outputDir: `${__dirname}/pptx-output`,
+    removeExistingSlides: true,
+    verbosity: 0,
+  });
+  await automizer
+    .loadRoot('EmptySlide.pptx')
+    .load('EmptySlide.pptx', 'empty')
+    .addSlide('empty', 1, (slide) => {
+      slide.generate((s) => {
+        s.addText('Page {{flowPage}} of {{flowPages}}', {
+          x: 0.5,
+          y: 0.2,
+          w: 12,
+          h: 0.4,
+          fontSize: 12,
+          fontFace: 'Liberation Sans',
+        });
+        [0.5, 4.68, 8.86].forEach((x) =>
+          s.addText(
+            loop().map((t) => ({
+              text: t,
+              options: { breakLine: true, bold: t === '{{item.title}}' },
+            })),
+            {
+              x,
+              y: 1,
+              w: 3.95,
+              h: 6.2,
+              fontSize: 11,
+              fontFace: 'Liberation Sans',
+              valign: 'top',
+              paraSpaceAfter: 4,
+            },
+          ),
+        );
+      });
+    })
+    .write(file);
+  return `${__dirname}/pptx-output/${file}`;
+};
+
+/** Per slide of a deck, in order: its text and its entry numbers per box. */
+const deckSlides = async (pptx: Buffer) => {
+  const zip = await JSZip.loadAsync(pptx);
+  const rels = await zip
+    .file('ppt/_rels/presentation.xml.rels')
+    .async('string');
+  const presentation = await zip.file('ppt/presentation.xml').async('string');
+  const targets = new Map(
+    [...rels.matchAll(/Id="([^"]+)"[^>]*Target="([^"]+)"/g)].map((m) => [
+      m[1],
+      m[2],
+    ]),
+  );
+  const ids = [...presentation.matchAll(/<p:sldId [^>]*r:id="([^"]+)"/g)].map(
+    (m) => m[1],
+  );
+  return Promise.all(
+    ids.map(async (id) => {
+      const xml = await zip.file(`ppt/${targets.get(id)}`).async('string');
+      const boxes = [...xml.matchAll(/<p:sp>[\s\S]*?<\/p:sp>/g)]
+        .map((m) => m[0])
+        .filter((sp) => sp.includes('y="914400"'))
+        .map((sp) => ({
+          x: Number(/<a:off x="(\d+)"/.exec(sp)[1]),
+          entries: [...sp.matchAll(/<a:t>(\d+)\. Entry<\/a:t>/g)].map(
+            (t) => t[1],
+          ),
+        }))
+        .sort((a, b) => a.x - b.x)
+        .map((b) => b.entries);
+      return { text: xml.replace(/<[^>]+>/g, ''), boxes };
+    }),
+  );
+};
+
+test('renderDeck repeats a slide until the flow() list is placed', async () => {
+  const template = await writeFlowTemplate('text-flow-deck-template.pptx');
+  const items = [...entries(28), ...entries(28)].map((e, i) => ({
+    ...e,
+    title: `${i + 1}. Entry`,
+  }));
+
+  expect(await countFlowPages(template, 2, { items }, { fonts })).toBe(3);
+
+  const slides = await deckSlides(
+    await renderDeck(template, { items }, { fonts }),
+  );
+  expect(slides).toHaveLength(3);
+  expect(slides[0].boxes).toEqual([range(1, 8), range(9, 16), range(17, 24)]);
+  expect(slides[0].text).toContain('Page 1 of 3');
+  expect(slides[2].text).toContain('Page 3 of 3');
+  // every entry once, in order
+  expect(slides.flatMap((s) => s.boxes.flat())).toEqual(range(1, 56));
+});
+
+test('renderDeck keeps one slide when the list fits', async () => {
+  const template = await writeFlowTemplate(
+    'text-flow-deck-template-short.pptx',
+  );
+  const slides = await deckSlides(
+    await renderDeck(template, { items: entries(5) }, { fonts }),
+  );
+  expect(slides).toHaveLength(1);
+  expect(slides[0].text).toContain('Page 1 of 1');
+});
+
+test('flowPage renders one of the slides a list needs; flowRest lists the later entries', async () => {
+  await render(
+    'text-flow-page.pptx',
+    columns,
+    { items: entries(28) },
+    { flowPage: 0 },
+    [
+      {
+        name: 'Next',
+        y: 0.2,
+        text: [
+          'Next: {{flowRest(items).length}}, page {{flowPage}} of {{flowPages}}',
+        ],
+      },
+    ],
+  );
+  expect(await slideText('text-flow-page.pptx')).toContain(
+    'Next: 4, page 1 of 2',
+  );
+
+  await render(
+    'text-flow-page2.pptx',
+    columns,
+    { items: entries(28) },
+    { flowPage: 1 },
+  );
+  expect(await columnsOf('text-flow-page2.pptx')).toEqual([
+    range(25, 28),
+    [],
+    [],
+  ]);
 });

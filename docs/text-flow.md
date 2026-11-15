@@ -73,17 +73,58 @@ pres.addSlide('Columns.pptx', 1, (slide) => {
 If a font cannot be found at all, `flow()` logs a warning and measures with
 Liberation Sans, Arial or another sans-serif font it finds instead.
 
-## Entries that do not fit
+## Lists longer than one slide
 
-When the boxes are full, the remaining entries are left out and a warning is
-logged. `flowRest(list)` returns them, for example to say how many are
-missing, or for a following slide:
+When the boxes are full, the list continues on a copy of the slide: the same
+boxes, filled with the next entries. `renderDeck` (and
+`pptx-templates render`) adds these copies by itself, right after the slide:
+
+```ts
+import fs from 'fs';
+import { renderDeck } from 'pptx-templates';
+
+const items = [{ title: 'Apples', text: 'Grown in the valley …' }];
+
+fs.writeFileSync('output/Columns.pptx', await renderDeck('templates/Columns.pptx', { items }));
+```
+
+Everything else on the slide repeats as well. `flowPage` (1, 2, …) and
+`flowPages` tell the copies apart:
+
+```text
+Products {{IF flowPage > 1}}(continued){{END-IF}}
+Page {{flowPage}} of {{flowPages}}
+```
+
+With `addSlide`, the deck is planned before anything is rendered, so ask
+first how many slides the list needs and add them yourself. `flowPage` (0-based)
+picks the part of the list each one shows:
+
+```ts
+import { countFlowPages, modify } from 'pptx-templates';
+
+const items = [{ title: 'Apples', text: 'Grown in the valley …' }];
+const data = { items };
+
+const pages = await countFlowPages('templates/Columns.pptx', 1, data);
+for (let page = 0; page < pages; page++) {
+  pres.addSlide('Columns.pptx', 1, (slide) => {
+    slide.modify(modify.renderTemplate(data, { flowPage: page }));
+  });
+}
+```
+
+`flowRest(list)` returns the entries after the current slide, for example
+for a note at the bottom:
 
 ```text
 {{IF flowRest(items).length}}{{flowRest(items).length}} more on the next slide{{END-IF}}
 ```
 
-`flowOverflow: 'error'` turns the warning into an error:
+Rendered without `flowPage` (a single `addSlide`), the entries that need
+another slide are left out and a warning is logged. An entry too large for
+every box is left out as well, also by `renderDeck`. `flowOverflow: 'error'`
+turns these warnings into errors:
 
 ```ts
 import { modify } from 'pptx-templates';
@@ -96,9 +137,6 @@ pres.addSlide('Columns.pptx', 1, (slide) => {
   );
 });
 ```
-
-A list that needs more than one slide has to be split in code: add as many
-slides as needed and pass each one its part of the list.
 
 ## Rules for the template
 
@@ -126,5 +164,7 @@ slides as needed and pass each one its part of the list.
   matters.
 - Hyphenation, kerning and right-to-left or East Asian line breaking rules
   are not taken into account.
-- `flow` and `flowRest` are built-in helpers. A name `flow` in your data or in
-  `additionalJsContext` takes precedence over them.
+- `flow`, `flowRest`, `flowPage` and `flowPages` are built in. The same name
+  in your data or in `additionalJsContext` takes precedence.
+- To count the slides, `renderDeck` and `countFlowPages` render the slide
+  once more. Functions in your data are called again then.

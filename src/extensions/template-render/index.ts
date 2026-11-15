@@ -1,4 +1,5 @@
 import fs from 'fs';
+import JSZip from 'jszip';
 import type {
   RenderTemplateOptions,
   TemplateData,
@@ -19,27 +20,20 @@ const toBuffer = (pptx: Buffer | Uint8Array | ArrayBuffer): Buffer =>
       ? Buffer.from(pptx)
       : Buffer.from(pptx.buffer, pptx.byteOffset, pptx.byteLength);
 
-/**
- * Renders the tags of every slide of a template with one set of data and
- * returns the new .pptx: `renderTemplate` applied to each slide, the masters
- * and layouts of the template kept as they are.
- *
- * A failing tag rejects with a `TemplateRenderError` whose message starts
- * with the slide number ("slide 2: {{euro(p.preis)}}: Not a function …").
- *
- * @param pptx Path to a .pptx file or its contents.
- */
-export const renderDeck = async (
-  pptx: string | Buffer | Uint8Array | ArrayBuffer,
-  data: TemplateData,
-  options: RenderDeckOptions = {},
-): Promise<Buffer> => {
-  const { slides, ...renderOptions } = options;
-  const content =
-    typeof pptx === 'string'
-      ? await fs.promises.readFile(pptx)
-      : toBuffer(pptx);
+type DeckSlide = { number: number; page?: number };
 
+const loadContent = async (
+  pptx: string | Buffer | Uint8Array | ArrayBuffer,
+): Promise<Buffer> =>
+  typeof pptx === 'string' ? fs.promises.readFile(pptx) : toBuffer(pptx);
+
+/** Renders `slides` of a deck into a new deck (renderDeck's engine). */
+const buildDeck = async (
+  content: Buffer,
+  data: TemplateData,
+  renderOptions: RenderTemplateOptions,
+  select: (available: number[]) => Promise<DeckSlide[]> | DeckSlide[],
+): Promise<Buffer> => {
   // Loaded here, through the package entry: upstream helpers import
   // src/index.ts, so loading automizer.ts or the template logic first (as
   // the CLI does) breaks on the import cycle
@@ -59,17 +53,24 @@ export const renderDeck = async (
     .load(content, 'deck');
 
   const available = await pres.getTemplate('deck').getAllSlideNumbers();
-  const numbers = slides ?? available;
-  const missing = numbers.filter((n) => !available.includes(n));
+  const slides = await select(available);
+  const missing = slides
+    .map((s) => s.number)
+    .filter((n) => !available.includes(n));
   if (missing.length) {
     throw new Error(
       `The deck has no slide ${missing.join(', ')} (slides: ${available.join(', ')})`,
     );
   }
 
-  for (const number of numbers) {
+  for (const { number, page } of slides) {
     pres.addSlide('deck', number, (slide) => {
-      const render = modify.renderTemplate(data, renderOptions);
+      const render = modify.renderTemplate(
+        data,
+        page === undefined
+          ? renderOptions
+          : { ...renderOptions, flowPage: page },
+      );
       slide.modify(async (document, context) => {
         try {
           await render(document, context);
@@ -95,4 +96,79 @@ export const renderDeck = async (
     }
     throw error;
   }
+};
+
+/** Whether a slide of the deck calls flow() (cheap text check). */
+const usesFlow = async (content: Buffer, number: number): Promise<boolean> => {
+  const zip = await JSZip.loadAsync(content);
+  const xml = await zip.file(`ppt/slides/slide${number}.xml`)?.async('string');
+  return !!xml && /flow\s*\(/.test(xml.replace(/<[^>]+>/g, ''));
+};
+
+/**
+ * How many slides the `flow()` lists of one template slide need with this
+ * data: render the slide that many times, with `flowPage: 0`, `1`, ….
+ * `renderDeck` does this by itself.
+ *
+ * @param pptx Path to a .pptx file or its contents.
+ * @param slide 1-based number of the slide in the template.
+ */
+export const countFlowPages = async (
+  pptx: string | Buffer | Uint8Array | ArrayBuffer,
+  slide: number,
+  data: TemplateData,
+  options: RenderTemplateOptions = {},
+): Promise<number> => {
+  const content = await loadContent(pptx);
+  if (!(await usesFlow(content, slide))) return 1;
+  let pages = 1;
+  await buildDeck(
+    content,
+    data,
+    {
+      ...options,
+      // the overflow is what is being counted, not an error
+      flowOverflow: 'warn',
+      flowPage: Number.MAX_SAFE_INTEGER,
+      onFlowPages: (count) => (pages = Math.max(pages, count)),
+    },
+    () => [{ number: slide }],
+  );
+  return pages;
+};
+
+/**
+ * Renders the tags of every slide of a template with one set of data and
+ * returns the new .pptx: `renderTemplate` applied to each slide, the masters
+ * and layouts of the template kept as they are.
+ *
+ * A failing tag rejects with a `TemplateRenderError` whose message starts
+ * with the slide number ("slide 2: {{euro(p.preis)}}: Not a function …").
+ *
+ * A slide whose `flow()` lists do not fit is repeated as often as needed,
+ * each copy with the next entries (`flowPage` 1, 2, … in the template).
+ *
+ * @param pptx Path to a .pptx file or its contents.
+ */
+export const renderDeck = async (
+  pptx: string | Buffer | Uint8Array | ArrayBuffer,
+  data: TemplateData,
+  options: RenderDeckOptions = {},
+): Promise<Buffer> => {
+  const { slides, ...renderOptions } = options;
+  const content = await loadContent(pptx);
+  return buildDeck(content, data, renderOptions, async (available) => {
+    const result: DeckSlide[] = [];
+    for (const number of slides ?? available) {
+      // a slide whose flow() lists need more room repeats
+      const pages =
+        available.includes(number) && renderOptions.flowPage === undefined
+          ? await countFlowPages(content, number, data, renderOptions)
+          : 1;
+      for (let page = 0; page < pages; page++) {
+        result.push({ number, page: pages > 1 ? page : undefined });
+      }
+    }
+    return result;
+  });
 };

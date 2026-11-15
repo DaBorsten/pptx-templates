@@ -74,6 +74,14 @@ export type RenderTemplateOptions = {
    * returns them in the template.
    */
   flowOverflow?: 'warn' | 'error';
+  /**
+   * When the entries of `flow()` need more than one slide: which of these
+   * slides to render, 0-based. `countFlowPages` tells how many there are;
+   * `renderDeck` adds them by itself. Default: 0, the first one.
+   */
+  flowPage?: number;
+  /** Called with the number of slides the `flow()` lists of a slide need. */
+  onFlowPages?: (pages: number) => void;
 };
 
 export type TemplateCommandType =

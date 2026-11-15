@@ -238,6 +238,8 @@ export class TemplateRenderer {
   >();
   /** flow(): the text boxes it fills and the body being rendered. */
   private textFlow?: TextFlow;
+  /** flow(): the argument source of each list (group key → source). */
+  private readonly flowSources = new Map<string, string>();
   private currentBody?: XmlElement;
   /** Set while a copy of a body is rendered to measure it. */
   private flowOverride?: () => unknown[];
@@ -255,10 +257,17 @@ export class TemplateRenderer {
       allowStringPatterns: options.allowStringPatterns ?? false,
     };
     // Built-in helpers; additionalJsContext and data can shadow them.
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
+    const self = this;
     const builtins = new Scope(
       {
         flow: (list: unknown) => this.flowEntries(list),
         flowRest: (list: unknown) => this.flowRest(list),
+        // 1-based number of this slide among the slides a list needs
+        flowPage: (options.flowPage ?? 0) + 1,
+        get flowPages() {
+          return self.textFlow?.pages ?? 1;
+        },
       },
       undefined,
       false,
@@ -317,7 +326,10 @@ export class TemplateRenderer {
           .join('');
         const keys = new Set<string>();
         for (const match of text.matchAll(this.tagPattern)) {
-          flowArguments(match[1]).forEach((call) => keys.add(call.key));
+          flowArguments(match[1]).forEach((call) => {
+            keys.add(call.key);
+            this.flowSources.set(call.key, call.source);
+          });
         }
         if (keys.size > 1) {
           throw new TemplateRenderError(
@@ -355,7 +367,12 @@ export class TemplateRenderer {
         renderCopy: (body, entries) => this.renderCopy(body, entries),
         styles: async () => (await this.context.styles?.()) ?? {},
       },
-      { fonts: this.options.fonts, flowOverflow: this.options.flowOverflow },
+      {
+        fonts: this.options.fonts,
+        flowOverflow: this.options.flowOverflow,
+        flowPage: this.options.flowPage,
+        onFlowPages: this.options.onFlowPages,
+      },
     );
   }
 
@@ -385,6 +402,10 @@ export class TemplateRenderer {
       ...flowArguments(expr.source),
       ...flowArguments(expr.source, 'flowRest'),
     ];
+    // flowPages needs every list distributed
+    if (/(^|[^\w$.])flowPages\b/.test(expr.source)) {
+      this.flowSources.forEach((source, key) => calls.push({ source, key }));
+    }
     if (!calls.length) return expr;
     const lists = calls.map((call) => ({
       key: call.key,

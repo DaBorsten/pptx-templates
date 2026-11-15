@@ -21,6 +21,13 @@ export type FlowOptions = {
   fonts?: string[];
   /** Entries that fit nowhere: log a warning (default) or throw. */
   flowOverflow?: 'warn' | 'error';
+  /**
+   * 0-based: which of the slides the list needs is rendered. Without it,
+   * the first one, and entries that need more slides count as overflow.
+   */
+  flowPage?: number;
+  /** Called with the number of slides the lists of the slide need. */
+  onFlowPages?: (pages: number) => void;
 };
 
 type Box = {
@@ -36,8 +43,10 @@ type Box = {
 
 type Plan = {
   list: unknown[];
-  chunks: Map<XmlElement, number[]>;
-  rest: number[];
+  /** Per slide (page): the entries of each box. */
+  pages: Map<XmlElement, number[]>[];
+  /** Per page: the index of the first entry after it. */
+  ends: number[];
 };
 
 const TOLERANCE = 0.01;
@@ -130,6 +139,7 @@ export class TextFlow {
         group,
         this.computePlan(group, entries).then((plan) => {
           this.resolved.set(group, plan);
+          this.options.onFlowPages?.(this.pages);
           return plan;
         }),
       );
@@ -148,12 +158,16 @@ export class TextFlow {
     const plan = this.resolved.get(key);
     if (!plan) throw new Error(`flow(${key}) was not prepared`);
     const entries = this.toList(list);
-    return (plan.chunks.get(body) ?? []).map((i) =>
+    const page = plan.pages[this.page] ?? new Map<XmlElement, number[]>();
+    return (page.get(body) ?? []).map((i) =>
       i < entries.length ? entries[i] : plan.list[i],
     );
   }
 
-  /** The entries of `list` that fit into none of its text boxes. */
+  /**
+   * The entries of `list` after the rendered slide: on the next slides, or
+   * in none (they fit into no box).
+   */
   rest(list: unknown): unknown[] {
     const entries = this.toList(list);
     const plans = [...this.resolved.values()];
@@ -163,11 +177,24 @@ export class TextFlow {
           p.list.length === entries.length &&
           p.list.every((e, i) => e === entries[i]),
       ) ?? (plans.length === 1 ? plans[0] : undefined);
-    if (!plan)
+    if (!plan) {
       throw new Error('flowRest(): no flow() over this list on the slide');
-    return plan.rest.map((i) =>
-      i < entries.length ? entries[i] : plan.list[i],
-    );
+    }
+    const end = plan.ends[Math.min(this.page, plan.ends.length - 1)] ?? 0;
+    return plan.list
+      .map((_, i) => i)
+      .slice(end)
+      .map((i) => (i < entries.length ? entries[i] : plan.list[i]));
+  }
+
+  /** How many slides the lists need (the longest one counts). */
+  get pages(): number {
+    const counts = [...this.resolved.values()].map((p) => p.pages.length);
+    return Math.max(1, ...counts);
+  }
+
+  private get page(): number {
+    return this.options.flowPage ?? 0;
   }
 
   private toList(value: unknown): unknown[] {
@@ -195,47 +222,49 @@ export class TextFlow {
         : a.geometry.y - b.geometry.y,
     );
 
-    const chunks = new Map<XmlElement, number[]>();
+    const pages: Map<XmlElement, number[]>[] = [];
+    const ends: number[] = [];
     let next = 0;
-    for (const box of boxes) {
-      const taken: number[] = [];
-      const paragraphs = () => [
-        ...box.head,
-        ...taken.flatMap((i) => box.entries[i]),
-        ...box.tail,
-      ];
-      while (next < list.length) {
-        taken.push(next);
-        if (
-          taken.length > 1 &&
-          stackHeight(paragraphs()) > box.geometry.height + TOLERANCE
-        ) {
-          taken.pop();
-          break;
+    // Fill the boxes, then the same boxes on the next slide, … until an
+    // entry fits into none of them (or all are placed)
+    for (;;) {
+      const start = next;
+      const page = new Map<XmlElement, number[]>();
+      for (const box of boxes) {
+        const taken: number[] = [];
+        while (next < list.length) {
+          const paragraphs = [
+            ...box.head,
+            ...[...taken, next].flatMap((i) => box.entries[i]),
+            ...box.tail,
+          ];
+          // an entry too large for this box tries the next one
+          if (stackHeight(paragraphs) > box.geometry.height + TOLERANCE) break;
+          taken.push(next++);
         }
-        if (
-          taken.length === 1 &&
-          stackHeight(paragraphs()) > box.geometry.height + TOLERANCE
-        ) {
-          // does not fit even alone: leave the box empty, try the next one
-          taken.pop();
-          break;
-        }
-        next++;
+        page.set(box.body, taken);
       }
-      chunks.set(box.body, taken);
+      // a slide without progress: the next entry fits into no box
+      if (next === start && pages.length) break;
+      pages.push(page);
+      ends.push(next);
+      if (next >= list.length || next === start) break;
     }
 
-    const rest = list.map((_, i) => i).slice(next);
-    if (rest.length) {
-      const message =
-        `flow(${key}): ${rest.length} of ${list.length} entries do not fit ` +
-        `into the text boxes ${boxes.map((b) => `"${b.name}"`).join(', ')}. ` +
-        'flowRest(…) returns them.';
+    const unplaced = list.length - next;
+    const shown = this.options.flowPage === undefined ? ends[0] : next;
+    const missing = list.length - shown;
+    if (missing) {
+      const where = `the text boxes ${boxes.map((b) => `"${b.name}"`).join(', ')}`;
+      const message = unplaced
+        ? `flow(${key}): ${unplaced} of ${list.length} entries fit into none of ${where}.`
+        : `flow(${key}): ${missing} of ${list.length} entries do not fit into ${where}; ` +
+          `the list needs ${pages.length} slides. flowRest(…) returns the entries ` +
+          'that are left, renderDeck adds the slides (see countFlowPages).';
       if (this.options.flowOverflow === 'error') throw new Error(message);
       log.warn(message);
     }
-    return { list, chunks, rest };
+    return { list, pages, ends };
   }
 
   private async measureBox(
