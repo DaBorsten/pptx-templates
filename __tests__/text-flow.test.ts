@@ -267,6 +267,15 @@ test('flowArguments finds the list of each flow() call', () => {
   expect(flowArguments('flowRest(items).length', 'flowRest')).toEqual([
     { source: 'items', key: 'items' },
   ]);
+  expect(flowArguments('FOR x IN flow(items.slice(0, 9), perBox + 1)')).toEqual(
+    [
+      {
+        source: 'items.slice(0, 9)',
+        key: 'items.slice(0,9)',
+        limit: 'perBox + 1',
+      },
+    ],
+  );
 });
 
 test('the linter knows flow() and traces its list', async () => {
@@ -315,7 +324,10 @@ test('the linter knows flow() and traces its list', async () => {
  * A template deck: one slide with three flow boxes and a header that shows
  * the page, built with generate() and written without rendering.
  */
-const writeFlowTemplate = async (file: string): Promise<string> => {
+const writeFlowTemplate = async (
+  file: string,
+  list = 'items',
+): Promise<string> => {
   const automizer = new Automizer({
     templateDir: `${__dirname}/pptx-templates`,
     outputDir: `${__dirname}/pptx-output`,
@@ -337,7 +349,7 @@ const writeFlowTemplate = async (file: string): Promise<string> => {
         });
         [0.5, 4.68, 8.86].forEach((x) =>
           s.addText(
-            loop().map((t) => ({
+            loop(list).map((t) => ({
               text: t,
               options: { breakLine: true, bold: t === '{{item.title}}' },
             })),
@@ -456,4 +468,31 @@ test('flowPage renders one of the slides a list needs; flowRest lists the later 
     [],
     [],
   ]);
+});
+
+test('flow(list, 1): one entry per box, continued on copies of the slide', async () => {
+  const template = await writeFlowTemplate(
+    'text-flow-one-template.pptx',
+    'items, 1',
+  );
+  const slides = await deckSlides(
+    await renderDeck(template, { items: entries(7) }, { fonts }),
+  );
+  expect(slides.map((s) => s.boxes)).toEqual([
+    [['1'], ['2'], ['3']],
+    [['4'], ['5'], ['6']],
+    [['7'], [], []],
+  ]);
+  expect(slides[2].text).toContain('Page 3 of 3');
+
+  await expect(
+    render(
+      'text-flow-limit-error.pptx',
+      columns,
+      { items: entries(3) },
+      {},
+      [],
+      () => loop('items, 0'),
+    ),
+  ).rejects.toThrow(/whole number of at least 1/);
 });

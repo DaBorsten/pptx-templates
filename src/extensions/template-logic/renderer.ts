@@ -240,6 +240,8 @@ export class TemplateRenderer {
   private textFlow?: TextFlow;
   /** flow(): the argument source of each list (group key → source). */
   private readonly flowSources = new Map<string, string>();
+  /** flow(list, n): the limit per box, as the expression `n`. */
+  private readonly flowLimits = new Map<XmlElement, Expr>();
   private currentBody?: XmlElement;
   /** Set while a copy of a body is rendered to measure it. */
   private flowOverride?: () => unknown[];
@@ -329,6 +331,9 @@ export class TemplateRenderer {
           flowArguments(match[1]).forEach((call) => {
             keys.add(call.key);
             this.flowSources.set(call.key, call.source);
+            if (call.limit) {
+              this.flowLimits.set(body, this.compile(call.limit, match[0]));
+            }
           });
         }
         if (keys.size > 1) {
@@ -419,12 +424,37 @@ export class TemplateRenderer {
           for (const list of lists) {
             let value = list.expr.evaluate(scope, options);
             if (isThenable(value)) value = await value;
-            await this.textFlow.prepare(list.key, value);
+            await this.textFlow.prepare(
+              list.key,
+              value,
+              await this.flowLimitValues(scope, options),
+            );
           }
           return expr.evaluate(scope, options);
         })();
       },
     };
+  }
+
+  /** flow(list, n): the number `n` of each box that has one. */
+  private async flowLimitValues(
+    scope: Parameters<Expr['evaluate']>[0],
+    options: Parameters<Expr['evaluate']>[1],
+  ): Promise<Map<XmlElement, number>> {
+    const limits = new Map<XmlElement, number>();
+    for (const [body, expr] of this.flowLimits) {
+      let value = expr.evaluate(scope, options);
+      if (isThenable(value)) value = await value;
+      const limit = Number(value);
+      if (!Number.isInteger(limit) || limit < 1) {
+        throw new Error(
+          `flow(…, ${expr.source}): the number of entries per text box ` +
+            `must be a whole number of at least 1, not ${String(value)}`,
+        );
+      }
+      limits.set(body, limit);
+    }
+    return limits;
   }
 
   /**

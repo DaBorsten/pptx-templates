@@ -35,6 +35,24 @@ each run, line spacing, space before and after paragraphs, indents and
 bullets, including what the shape inherits from its layout, master and
 theme. The boxes may be formatted differently and have different widths.
 
+## A fixed number of entries per box
+
+A second argument limits how many entries a box takes, for example one card
+per box:
+
+```text
+{{FOR item IN flow(items, 1)}}
+{{item.title}}
+{{item.text}}
+{{END-FOR}}
+```
+
+The height still counts: an entry that does not fit moves on to the next box.
+The number can differ from box to box (`flow(items, 2)` in the first one,
+`flow(items, 1)` in the others) and can come from the data
+(`flow(items, perBox)`). With three such boxes and seven entries,
+`renderDeck` makes three slides: 1 2 3, 4 5 6, 7.
+
 ## How it measures
 
 Before the boxes are filled, every entry is rendered once into a copy of each

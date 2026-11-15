@@ -23,6 +23,7 @@ semver, with the pre-1.0 convention that **breaking changes bump the minor**.
   `renderDeck` and `pptx-templates render` add them by themselves; with
   `addSlide`, `countFlowPages(pptx, slide, data)` tells how many there
   are and the `flowPage` option picks the part each copy shows.
+  `flow(items, 1)` puts at most one entry (or any number) into each box.
   `flowPage` and `flowPages` in the template number the copies,
   `flowRest(list)` returns the entries after the current slide. Without
   `flowPage`, entries that need another slide are logged as a warning, or

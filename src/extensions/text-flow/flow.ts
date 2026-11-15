@@ -52,7 +52,12 @@ type Plan = {
 const TOLERANCE = 0.01;
 
 /** A `flow(…)` call: its argument as written, and without whitespace. */
-export type FlowCall = { source: string; key: string };
+export type FlowCall = {
+  source: string;
+  key: string;
+  /** Source of the second argument: at most this many entries per box. */
+  limit?: string;
+};
 
 /** Calls of `flow(…)` (or `flowRest(…)`) in a text. */
 export const flowArguments = (text: string, name = 'flow'): FlowCall[] => {
@@ -63,6 +68,7 @@ export const flowArguments = (text: string, name = 'flow'): FlowCall[] => {
     let i = pattern.lastIndex;
     const start = i;
     let quote = '';
+    const commas: number[] = [];
     for (; i < text.length && depth > 0; i++) {
       const c = text[i];
       if (quote) {
@@ -71,9 +77,19 @@ export const flowArguments = (text: string, name = 'flow'): FlowCall[] => {
       } else if (c === "'" || c === '"' || c === '`') quote = c;
       else if (c === '(' || c === '[' || c === '{') depth++;
       else if (c === ')' || c === ']' || c === '}') depth--;
+      else if (c === ',' && depth === 1) commas.push(i);
     }
-    const source = text.slice(start, i - 1).trim();
-    args.push({ source, key: source.replace(/\s+/g, '') });
+    const end = i - 1;
+    const source = text.slice(start, commas[0] ?? end).trim();
+    const limit =
+      commas.length > 0
+        ? text.slice(commas[0] + 1, commas[1] ?? end).trim()
+        : '';
+    args.push({
+      source,
+      key: source.replace(/\s+/g, ''),
+      ...(limit ? { limit } : {}),
+    });
   }
   return args;
 };
@@ -123,7 +139,11 @@ export class TextFlow {
    * A `flowRest()` list that is no group's falls back to the only group.
    * Must be awaited before `entries()`/`rest()`, which are synchronous.
    */
-  async prepare(key: string, list: unknown): Promise<void> {
+  async prepare(
+    key: string,
+    list: unknown,
+    limits = new Map<XmlElement, number>(),
+  ): Promise<void> {
     const groups = this.groups();
     const group = groups.includes(key)
       ? key
@@ -137,7 +157,7 @@ export class TextFlow {
       const entries = this.toList(list);
       this.plans.set(
         group,
-        this.computePlan(group, entries).then((plan) => {
+        this.computePlan(group, entries, limits).then((plan) => {
           this.resolved.set(group, plan);
           this.options.onFlowPages?.(this.pages);
           return plan;
@@ -205,7 +225,11 @@ export class TextFlow {
     return Array.from(value as Iterable<unknown>);
   }
 
-  private async computePlan(key: string, list: unknown[]): Promise<Plan> {
+  private async computePlan(
+    key: string,
+    list: unknown[],
+    limits: Map<XmlElement, number>,
+  ): Promise<Plan> {
     const bodies = [...this.keys]
       .filter(([, k]) => k === key)
       .map(([body]) => body);
@@ -232,7 +256,8 @@ export class TextFlow {
       const page = new Map<XmlElement, number[]>();
       for (const box of boxes) {
         const taken: number[] = [];
-        while (next < list.length) {
+        const limit = limits.get(box.body) ?? Infinity;
+        while (next < list.length && taken.length < limit) {
           const paragraphs = [
             ...box.head,
             ...[...taken, next].flatMap((i) => box.entries[i]),

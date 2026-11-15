@@ -395,7 +395,7 @@ export class TemplateExpression {
       node.type === 'call' &&
       node.callee.type === 'id' &&
       node.callee.name === 'flow' &&
-      node.args.length === 1
+      node.args.length >= 1
     ) {
       return staticPath(node.args[0]);
     }
