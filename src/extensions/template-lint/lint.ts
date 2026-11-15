@@ -29,6 +29,12 @@ import {
 } from './usage';
 import { DataSkeletonRecorder, TemplateDataSkeleton } from './skeleton';
 
+/** Helpers renderTemplate provides itself (see text-flow). */
+const BUILTIN_HELPERS: Record<string, unknown> = {
+  flow: (list: unknown) => list,
+  flowRest: (): unknown[] => [],
+};
+
 /** One stretch of runs: a tag must sit within it (renderer tokenizing). */
 type Segment = { text: string; paragraph: XmlElement; cell?: number };
 type Container = { kind: 'shape' | 'table'; segments: Segment[] };
@@ -240,12 +246,10 @@ class TemplateLinter {
     this.syntax = tagSyntax(options);
     this.fixQuotes = options.fixSmartQuotes ?? false;
     this.data = options.data;
-    this.extraNames = new Set(Object.keys(options.additionalJsContext ?? {}));
-    this.model = new DataModel(
-      options.data,
-      options.schema,
-      options.additionalJsContext,
-    );
+    // Built-in helpers count like additionalJsContext: names, not data
+    const helpers = { ...BUILTIN_HELPERS, ...options.additionalJsContext };
+    this.extraNames = new Set(Object.keys(helpers));
+    this.model = new DataModel(options.data, options.schema, helpers);
   }
 
   private report(
@@ -418,7 +422,7 @@ class TemplateLinter {
             }
             case 'FOR': {
               const expr = check(command.code, false);
-              const listPath = this.dataPathOf(expr?.path(), paths);
+              const listPath = this.dataPathOf(expr?.listPath(), paths);
               const entryPath = listPath && [...listPath, '[]'];
               if (listPath) this.usage?.recordList?.(listPath);
               const element = this.loopElement(expr, loopVars, execNames);
@@ -787,7 +791,7 @@ class TemplateLinter {
     loopVars: Map<string, Known>,
     execNames: Set<string>,
   ): Known | undefined {
-    const path = expr?.path();
+    const path = expr?.listPath();
     if (!path || !this.model.enabled) return ANY;
     let known = this.lookup(path.name, loopVars, execNames);
     for (const key of path.path) {

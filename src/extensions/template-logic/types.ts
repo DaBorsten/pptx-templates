@@ -61,6 +61,19 @@ export type RenderTemplateOptions = {
    * the data file.
    */
   imageRoot?: string;
+  /**
+   * Font files (.ttf, .otf, .ttc) or folders that `flow()` measures text
+   * with. They are searched first, then the system font folders. Fonts with
+   * the same metrics stand in for missing ones (Liberation Sans for Arial,
+   * Carlito for Calibri, …).
+   */
+  fonts?: string[];
+  /**
+   * What `flow()` does with entries that fit into none of its text boxes:
+   * log a warning (`'warn'`, default) or throw (`'error'`). `flowRest(list)`
+   * returns them in the template.
+   */
+  flowOverflow?: 'warn' | 'error';
 };
 
 export type TemplateCommandType =

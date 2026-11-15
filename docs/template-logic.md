@@ -272,6 +272,8 @@ pres.addSlide('TextReplace.pptx', 1, (slide) => {
 | `processLineBreaks` | `true` | Turn `\n` in inserted values into line breaks |
 | `fixSmartQuotes` | `false` | Replace typographic quotes (`“ ” „ ‘ ’ ‚`) with straight ones before parsing, as in docx-templates |
 | `imageRoot` | | Folder that file paths in `{{IMAGE}}` values are read from (`"images/logo.png"`). Paths cannot leave it |
+| `fonts` | | Font files or folders that [`flow()`](./text-flow.md) measures text with, searched before the system fonts |
+| `flowOverflow` | `'warn'` | `'error'`: throw when entries of [`flow()`](./text-flow.md) fit into none of its text boxes |
 
 ## Rendering a whole deck
 

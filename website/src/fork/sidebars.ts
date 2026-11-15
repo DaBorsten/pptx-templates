@@ -12,7 +12,7 @@ type Item = any; // a sidebar item as written in sidebars.ts (string id or objec
 const GROUPS: { label: string; ids: string[] }[] = [
   { label: 'Get started', ids: ['index', 'getting-started', 'concepts', 'selectors'] },
   { label: 'Modify content', ids: ['text', 'tables', 'charts', 'images', 'masters-layouts'] },
-  { label: 'Templates', ids: ['template-logic', 'shape-geometry', 'template-lint'] },
+  { label: 'Templates', ids: ['template-logic', 'text-flow', 'shape-geometry', 'template-lint'] },
   { label: 'Build decks', ids: ['generation', 'hyperlinks', 'slide-management', 'helpers', 'output'] },
   { label: 'Help', ids: ['limitations', 'troubleshooting', 'testing'] },
 ];

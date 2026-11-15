@@ -19,6 +19,7 @@ import {
   tagSyntax,
 } from './commands';
 import { ImageTarget, loadImage, placeImages } from './images';
+import { flowArguments, SlideStyles, TextFlow } from '../text-flow';
 
 /** Access to the slide beyond its XML, resolved on first use. */
 export type RenderContext = {
@@ -26,6 +27,8 @@ export type RenderContext = {
   relations?: () => Promise<XmlElement | undefined>;
   /** Archive + root template to write media files to (IMAGE). */
   images?: () => Promise<ImageTarget | undefined>;
+  /** Layout, master and theme of the slide (text measurement of flow()). */
+  styles?: () => Promise<SlideStyles | undefined>;
 };
 
 /**
@@ -189,6 +192,16 @@ class Scope implements TemplateScope {
     if (!this.assignExisting(name, value)) this.vars[name] = value;
   }
 
+  /** Own variables, to undo the EXECs of a trial render. */
+  snapshot(): Record<string, unknown> {
+    return { ...this.vars };
+  }
+
+  restore(snapshot: Record<string, unknown>): void {
+    Object.keys(this.vars).forEach((key) => delete this.vars[key]);
+    Object.assign(this.vars, snapshot);
+  }
+
   private assignExisting(name: string, value: unknown): boolean {
     if (
       this.writable &&
@@ -223,6 +236,11 @@ export class TemplateRenderer {
     XmlElement,
     ReturnType<typeof loadImage>[]
   >();
+  /** flow(): the text boxes it fills and the body being rendered. */
+  private textFlow?: TextFlow;
+  private currentBody?: XmlElement;
+  /** Set while a copy of a body is rendered to measure it. */
+  private flowOverride?: () => unknown[];
 
   constructor(
     data: TemplateData,
@@ -236,9 +254,18 @@ export class TemplateRenderer {
       strict: options.strict ?? false,
       allowStringPatterns: options.allowStringPatterns ?? false,
     };
+    // Built-in helpers; additionalJsContext and data can shadow them.
+    const builtins = new Scope(
+      {
+        flow: (list: unknown) => this.flowEntries(list),
+        flowRest: (list: unknown) => this.flowRest(list),
+      },
+      undefined,
+      false,
+    );
     const jsContext = new Scope(
       options.additionalJsContext ?? {},
-      undefined,
+      builtins,
       false,
     );
     this.root = new Scope({}, new Scope(data ?? {}, jsContext, false));
@@ -246,8 +273,11 @@ export class TemplateRenderer {
 
   async render(element: XmlDocument | XmlElement): Promise<void> {
     this.collectAliases(element);
+    const targets = this.findTargets(element);
+    this.setupFlow(targets);
 
-    for (const target of this.findTargets(element)) {
+    for (const target of targets) {
+      this.currentBody = target.tagName === 'p:txBody' ? target : undefined;
       if (target.tagName === 'a:tbl') {
         await this.renderTable(target);
       } else if (this.containsTag(target)) {
@@ -267,6 +297,148 @@ export class TemplateRenderer {
         `Template rendering failed with ${this.errors.length} error(s):\n` +
           this.errors.map((e) => `- ${e}`).join('\n'),
       );
+    }
+  }
+
+  /*
+   * flow(): entries of a list spread over several text boxes
+   */
+
+  /** Finds the text boxes that call flow(…), before anything is rendered. */
+  private setupFlow(targets: XmlElement[]): void {
+    const boxes = new Map<XmlElement, string>();
+    targets
+      .filter((t) => t.tagName === 'p:txBody' && this.containsTag(t))
+      .forEach((body) => {
+        const text = XmlHelper.collectionToArray(
+          body.getElementsByTagName('a:t'),
+        )
+          .map((t) => t.textContent)
+          .join('');
+        const keys = new Set<string>();
+        for (const match of text.matchAll(this.tagPattern)) {
+          flowArguments(match[1]).forEach((call) => keys.add(call.key));
+        }
+        if (keys.size > 1) {
+          throw new TemplateRenderError(
+            `flow() over different lists in one text box: ${[...keys].join(', ')}`,
+          );
+        }
+        if (!keys.size) return;
+        // The loop must repeat whole paragraphs to be measured
+        const inline = this.childElements(body, 'a:p').some((p) => {
+          const tokens = this.tokenizeParagraph(p);
+          const tags = tokens.filter((t) => t.kind === 'tag') as TagToken[];
+          return (
+            tags.some((t) => flowArguments(t.tag).length) &&
+            tokens.some(
+              (t) =>
+                (t.kind === 'text' && t.text.trim() !== '') ||
+                (t.kind === 'tag' &&
+                  !STRUCTURAL_TYPES.includes(t.directive.type)),
+            )
+          );
+        });
+        if (inline) {
+          throw new TemplateRenderError(
+            'flow(): put {{FOR … IN flow(…)}} and {{END-FOR}} into paragraphs ' +
+              'of their own, around whole paragraphs',
+          );
+        }
+        boxes.set(body, [...keys][0]);
+      });
+    if (!boxes.size) return;
+
+    this.textFlow = new TextFlow(
+      boxes,
+      {
+        renderCopy: (body, entries) => this.renderCopy(body, entries),
+        styles: async () => (await this.context.styles?.()) ?? {},
+      },
+      { fonts: this.options.fonts, flowOverflow: this.options.flowOverflow },
+    );
+  }
+
+  private flowEntries(list: unknown): unknown[] {
+    if (this.flowOverride) return this.flowOverride();
+    if (!this.textFlow) {
+      throw new Error(
+        'flow() works only in the loop of a text box, not in a table',
+      );
+    }
+    return this.textFlow.entries(this.currentBody, list);
+  }
+
+  private flowRest(list: unknown): unknown[] {
+    if (this.flowOverride || !this.textFlow) return [];
+    return this.textFlow.rest(list);
+  }
+
+  /**
+   * Expressions are evaluated synchronously, so the distribution of a list
+   * is computed (asynchronously) before a command that calls flow() or
+   * flowRest() runs; both then just look it up.
+   */
+  private withFlow(expr: Expr, tag: string): Expr {
+    if (!this.textFlow) return expr;
+    const calls = [
+      ...flowArguments(expr.source),
+      ...flowArguments(expr.source, 'flowRest'),
+    ];
+    if (!calls.length) return expr;
+    const lists = calls.map((call) => ({
+      key: call.key,
+      expr: this.compile(call.source, tag),
+    }));
+    return {
+      source: expr.source,
+      evaluate: (scope, options) => {
+        if (this.flowOverride) return expr.evaluate(scope, options);
+        return (async () => {
+          for (const list of lists) {
+            let value = list.expr.evaluate(scope, options);
+            if (isThenable(value)) value = await value;
+            await this.textFlow.prepare(list.key, value);
+          }
+          return expr.evaluate(scope, options);
+        })();
+      },
+    };
+  }
+
+  /**
+   * Renders a detached copy of a text body with flow() returning `entries`
+   * and returns its paragraphs. EXEC assignments and collected errors of
+   * this trial render are undone; the real render repeats them.
+   */
+  private async renderCopy(
+    body: XmlElement,
+    entries: unknown[],
+  ): Promise<XmlElement[]> {
+    const copy = body.cloneNode(true) as XmlElement;
+    const saved = {
+      override: this.flowOverride,
+      current: this.currentBody,
+      errors: this.errors.length,
+      vars: this.root.snapshot(),
+    };
+    this.flowOverride = () => entries;
+    this.currentBody = copy;
+    try {
+      const tokens = this.tokenizeBody(copy);
+      await this.writeBody(
+        copy,
+        tokens,
+        this.parse(tokens.tokens, textControl),
+        this.root,
+      );
+      return this.childElements(copy, 'a:p');
+    } finally {
+      this.pendingImages.delete(copy);
+      this.flowOverride = saved.override;
+      this.currentBody = saved.current;
+      this.errors.length = saved.errors;
+      this.root.restore(saved.vars);
     }
   }
 
@@ -484,7 +656,7 @@ export class TemplateRenderer {
    */
   private compile(source: string, tag: string): Expr {
     try {
-      return new TemplateExpression(source);
+      return this.withFlow(new TemplateExpression(source), tag);
     } catch (error) {
       if (!this.handlesErrors) throw this.tagged(error, tag);
       return {
@@ -498,7 +670,10 @@ export class TemplateRenderer {
 
   private compileStatements(source: string, tag: string): Statement[] {
     try {
-      return parseStatements(source);
+      return parseStatements(source).map((statement) => ({
+        ...statement,
+        expr: this.withFlow(statement.expr, tag),
+      }));
     } catch (error) {
       if (!this.handlesErrors) throw this.tagged(error, tag);
       return [{ expr: this.compile(source, tag) }];

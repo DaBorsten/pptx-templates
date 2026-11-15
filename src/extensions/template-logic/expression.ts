@@ -386,6 +386,23 @@ export class TemplateExpression {
   }
 
   /**
+   * The list a `{{FOR … IN …}}` runs over: the path itself, or the argument
+   * of `flow(list)`, whose entries are the list's entries.
+   */
+  listPath(): ExpressionReference | undefined {
+    const node = this.ast;
+    if (
+      node.type === 'call' &&
+      node.callee.type === 'id' &&
+      node.callee.name === 'flow' &&
+      node.args.length === 1
+    ) {
+      return staticPath(node.args[0]);
+    }
+    return staticPath(node);
+  }
+
+  /**
    * Paths an `{{IMAGE …}}` value can come from: the value itself
    * (`logo`), the `data` of an object (`({ data: logo, width: 4 })`) and
    * both branches of `a ? b : c`, `a ?? b` and `a || b`.
