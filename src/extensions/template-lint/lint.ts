@@ -64,6 +64,8 @@ export type UsageSink = {
   ): void;
   /** `{{FOR x IN keys}}` iterates over this path. */
   recordList?(keys: string[]): void;
+  /** `{{IMAGE keys}}` places the value at this path as a picture. */
+  recordImage?(keys: string[]): void;
 };
 
 type IssueInput = Omit<TemplateLintIssue, 'part' | 'slide'>;
@@ -521,7 +523,11 @@ class TemplateLinter {
             case 'ALIAS':
               break;
             case 'IMAGE': {
-              check(command.code);
+              const expr = check(command.code);
+              for (const ref of expr?.imageSources() ?? []) {
+                const imagePath = this.dataPathOf(ref, paths);
+                if (imagePath) this.usage?.recordImage?.(imagePath);
+              }
               if (segment.cell !== undefined) {
                 tagReport({
                   severity: 'error',

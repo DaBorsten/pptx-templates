@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import IArchive from '../../interfaces/iarchive';
 import { RootPresTemplate } from '../../interfaces/root-pres-template';
 import { XmlElement } from '../../types/xml-types';
@@ -26,6 +28,8 @@ const MIME_EXTENSIONS: Record<string, string> = {
   'image/gif': 'gif',
 };
 const SUPPORTED = ['png', 'jpg', 'jpeg', 'gif'];
+/** A string ending like this is a file path: base64 has no dot. */
+const FILE_PATH = /\.(png|jpe?g|gif)$/i;
 
 const EMU_PER_CM = 360000;
 const EMU_PER_PT = 12700;
@@ -47,31 +51,83 @@ type LoadedImage = {
   extension: string;
 };
 
-/** Validates an IMAGE value and decodes its data. */
-export const loadImage = (value: unknown): LoadedImage => {
-  if (!value || typeof value !== 'object') {
+/** The type of a picture from its first bytes, for data without extension. */
+const sniffExtension = (content: Buffer): string | undefined => {
+  if (content.subarray(0, 8).equals(Buffer.from('89504e470d0a1a0a', 'hex'))) {
+    return 'png';
+  }
+  if (content[0] === 0xff && content[1] === 0xd8 && content[2] === 0xff) {
+    return 'jpeg';
+  }
+  if (/^GIF8[79]a/.test(content.subarray(0, 6).toString('latin1'))) {
+    return 'gif';
+  }
+  return undefined;
+};
+
+const isBinary = (value: unknown): value is Buffer | ArrayBuffer | Uint8Array =>
+  Buffer.isBuffer(value) ||
+  value instanceof ArrayBuffer ||
+  value instanceof Uint8Array;
+
+/** `images/logo.png` from `imageRoot`; the path cannot leave that folder. */
+const readImageFile = (file: string, imageRoot: string | undefined) => {
+  if (!imageRoot) {
     throw new Error(
-      'IMAGE needs an object, e.g. {{IMAGE ({ data, extension: ".png" })}}',
+      `IMAGE: "${file}" is a file path, but no imageRoot is set to read it from`,
     );
   }
-  const spec = value as TemplateImage;
-  let { data } = spec;
+  const root = path.resolve(imageRoot);
+  const resolved = path.resolve(root, file);
+  const back = path.relative(root, resolved);
+  if (!back || back.startsWith('..') || path.isAbsolute(back)) {
+    throw new Error(`IMAGE: "${file}" is outside of the imageRoot folder`);
+  }
+  try {
+    return fs.readFileSync(resolved);
+  } catch {
+    throw new Error(`IMAGE: file "${file}" not found in ${root}`);
+  }
+};
+
+/**
+ * Validates an IMAGE value and loads its data. The value is an object like
+ * `{ data, width, … }` or only the picture: a Buffer, a data URL, base64
+ * or a file path relative to `imageRoot` (`images/logo.png`).
+ */
+export const loadImage = (value: unknown, imageRoot?: string): LoadedImage => {
+  const spec = (
+    typeof value === 'string' || isBinary(value) ? { data: value } : value
+  ) as TemplateImage;
+  if (!spec || typeof spec !== 'object') {
+    throw new Error(
+      'IMAGE needs a picture or an object, e.g. {{IMAGE logo}} or {{IMAGE ({ data: logo, width: 4 })}}',
+    );
+  }
+  const { data } = spec;
   let extension = spec.extension?.replace(/^\./, '').toLowerCase();
 
+  let content: Buffer;
   if (typeof data === 'string') {
     const dataUrl = /^data:([^;,]+);base64,([\s\S]*)$/.exec(data);
     if (dataUrl) {
       extension ??= MIME_EXTENSIONS[dataUrl[1].toLowerCase()];
-      data = dataUrl[2];
+      content = Buffer.from(dataUrl[2], 'base64');
+    } else if (FILE_PATH.test(data.trim())) {
+      content = readImageFile(data.trim(), imageRoot);
+      extension ??= path.extname(data.trim()).slice(1).toLowerCase();
+    } else {
+      content = Buffer.from(data, 'base64');
     }
-    data = Buffer.from(data as string, 'base64');
-  }
-
-  let content: Buffer;
-  if (Buffer.isBuffer(data)) content = data;
+  } else if (Buffer.isBuffer(data)) content = data;
   else if (data instanceof ArrayBuffer) content = Buffer.from(data);
   else if (data instanceof Uint8Array) content = Buffer.from(data);
-  else throw new Error('IMAGE: "data" must be a Buffer or a base64 string');
+  else {
+    throw new Error(
+      'IMAGE: "data" must be a Buffer, a data URL, base64 or a file path',
+    );
+  }
+  extension ??= sniffExtension(content);
 
   if (!extension || !SUPPORTED.includes(extension)) {
     throw new Error(
