@@ -19,7 +19,10 @@ const repoRoot = path.resolve(__dirname, '../..');
 const SITE_ROOT = 'https://daborsten.github.io/pptx-templates/';
 
 const readDoc = (relPath: string): { title: string; body: string } => {
-  const raw = fs.readFileSync(path.join(repoRoot, relPath), 'utf-8');
+  // CRLF checkouts (Windows) must build the same file as LF ones (CI).
+  const raw = fs
+    .readFileSync(path.join(repoRoot, relPath), 'utf-8')
+    .replace(/\r\n/g, '\n');
   const fm = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
   if (!fm) throw new Error(`ai-instructor: ${relPath} has no frontmatter`);
   const title = fm[1].match(/^title:\s*(.+)$/m)?.[1]?.trim();
@@ -89,10 +92,9 @@ const renderSection = (relPath: string, heading: string): string => {
 };
 
 export const buildAiInstructor = (): string => {
-  const template = fs.readFileSync(
-    path.join(__dirname, 'template.md'),
-    'utf-8',
-  );
+  const template = fs
+    .readFileSync(path.join(__dirname, 'template.md'), 'utf-8')
+    .replace(/\r\n/g, '\n');
   const out = template.replace(
     /^<!-- include: (\S+)(?: § (.+?))? -->$/gm,
     (_, relPath: string, heading?: string) =>

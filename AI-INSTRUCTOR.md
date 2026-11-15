@@ -701,7 +701,7 @@ pres.addSlide('TextReplace.pptx', 1, (slide) => {
 });
 ```
 
-## Commands
+### Commands
 
 | Tag | Effect |
 |---|---|
@@ -736,7 +736,7 @@ loop. Set it before the loop, as `total` above, to keep its value.
 Your `data` is never changed: an `EXEC` that assigns a name from `data`
 defines a new variable that hides it.
 
-## Tables
+### Tables
 
 If a block opens in a cell and is not closed in that same cell, it spans
 table rows. `{{FOR row IN rows}}` in the first cell and `{{END-FOR}}` in the
@@ -749,7 +749,7 @@ Markers like `{{each:row}}` for `modify.setTable`'s `expand` (nested
 tables) are not commands: `renderTemplate` leaves them in the text, so
 `setTable` still finds them.
 
-## Images
+### Images
 
 `{{IMAGE …}}` takes the picture itself or an object like in docx-templates.
 The picture can be a `Buffer`, a data URL, or a file path relative to the
@@ -822,7 +822,7 @@ the shape is removed and only the pictures remain.
 - `IMAGE` writes a media file, so it needs `slide.modify(modify.renderTemplate(…))`.
   A `modifyElement()` callback cannot add files and rejects with an error.
 
-## Expressions
+### Expressions
 
 Expressions support property paths (`a.b`, `a[0]`, `a['key']`, `a?.b`),
 string/number/boolean literals, object and array literals
@@ -860,7 +860,7 @@ are rejected as well:
   (also permitted by `allowStringPatterns`).
 - `repeat`, `padStart` and `padEnd` for more than 1,000,000 characters.
 
-### Templates you did not write
+#### Templates you did not write
 
 The interpreter keeps a template away from Node.js, not away from your data.
 A template can call every method of every value you pass in, so
@@ -888,14 +888,14 @@ inside a string: `{{'Ada’s'}}` then becomes `'Ada's'` and fails. Guillemets
 Wrap an object literal in parentheses: `{{LINK ({ url: x })}}`. Without them,
 the `}}` of the object closes the tag.
 
-## Async data
+### Async data
 
 `data` can be a Promise, and functions in `data` can return Promises. The
 result of every tag is awaited, so `{{FOR p IN loadProjects()}}` works. To use
 properties of an async result, store it first:
 `{{EXEC user = loadUser()}}{{user.name}}`.
 
-## Options
+### Options
 
 ```ts
 import { modify } from 'pptx-templates';
@@ -931,7 +931,7 @@ pres.addSlide('TextReplace.pptx', 1, (slide) => {
 | `fixSmartQuotes` | `false` | Replace typographic quotes (`“ ” „ ‘ ’ ‚`) with straight ones before parsing, as in docx-templates |
 | `imageRoot` | | Folder that file paths in `{{IMAGE}}` values are read from (`"images/logo.png"`). Paths cannot leave it |
 
-## Rendering a whole deck
+### Rendering a whole deck
 
 When every slide of a template is filled with the same data, `renderDeck`
 saves the `addSlide` loop: it renders the tags of each slide and returns the
@@ -971,7 +971,7 @@ as `module.exports = { euro: (n) => n.toFixed(2) + ' €' }`. It runs as code,
 so only pass files you trust. The exit code is `0` when the file was written,
 `1` when a tag failed and `2` for an invalid call or an unreadable file.
 
-## Listing the commands of a template
+### Listing the commands of a template
 
 `listTemplateCommands` reads a .pptx and returns every tag, slide by slide,
 the way `listCommands` does in docx-templates. Use it to check a template, or
@@ -987,7 +987,7 @@ const commands = await listTemplateCommands('templates/Offer.pptx');
 To check a template for mistakes before rendering, use the
 [template linter](https://daborsten.github.io/pptx-templates/template-lint.md).
 
-## Good to know
+### Good to know
 
 - PowerPoint often splits text into several runs, even inside a tag (spell
   check, partial edits). Tags are joined across runs, and the inserted value
@@ -1125,7 +1125,7 @@ exclusive): the unterminated string, the unexpected character, the unknown
 property. Where there is nothing more precise, for an unclosed block, say,
 it covers the whole tag.
 
-## Command line
+### Command line
 
 ```bash
 npx pptx-templates lint deck.pptx
