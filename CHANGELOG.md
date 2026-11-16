@@ -6,6 +6,32 @@ semver, with the pre-1.0 convention that **breaking changes bump the minor**.
 
 ## [Unreleased]
 
+### Added
+
+- `flow(list)` in templates: the entries of a list flow through several
+  text boxes, column by column. Every box holds the same
+  `{{FOR item IN flow(items)}} … {{END-FOR}}`; the boxes are filled in
+  reading order, and an entry is never split between two boxes. How much
+  fits is measured, not estimated: each entry is rendered into a copy of
+  each box and broken into lines with the advance widths from the font
+  files, with the box's size and margins and the paragraphs' fonts, sizes,
+  spacing, indents and bullets, also where they are inherited from the
+  layout, master and theme. Fonts come from the system font folders and
+  the new `fonts` option; metric-compatible fonts stand in for missing
+  ones (Liberation Sans for Arial, Carlito for Calibri, …).
+  A list longer than the boxes continues on copies of the slide:
+  `renderDeck` and `pptx-templates render` add them by themselves; with
+  `addSlide`, `countFlowPages(pptx, slide, data)` tells how many there
+  are and the `flowPage` option picks the part each copy shows.
+  `flow(items, 1)` puts at most one entry (or any number) into each box.
+  `flowPage` and `flowPages` in the template number the copies,
+  `flowRest(list)` returns the entries after the current slide. Without
+  `flowPage`, entries that need another slide are logged as a warning, or
+  rejected with `flowOverflow: 'error'`.
+- The linter and `templateDataSkeleton` know `flow()` and `flowRest()`:
+  no "unknown variable" for them, and the entries of `flow(items)` are
+  traced to `items[]`.
+
 ## [0.3.4] - 2026-11-15
 
 ### Added

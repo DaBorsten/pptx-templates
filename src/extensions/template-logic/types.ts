@@ -61,6 +61,27 @@ export type RenderTemplateOptions = {
    * the data file.
    */
   imageRoot?: string;
+  /**
+   * Font files (.ttf, .otf, .ttc) or folders that `flow()` measures text
+   * with. They are searched first, then the system font folders. Fonts with
+   * the same metrics stand in for missing ones (Liberation Sans for Arial,
+   * Carlito for Calibri, …).
+   */
+  fonts?: string[];
+  /**
+   * What `flow()` does with entries that fit into none of its text boxes:
+   * log a warning (`'warn'`, default) or throw (`'error'`). `flowRest(list)`
+   * returns them in the template.
+   */
+  flowOverflow?: 'warn' | 'error';
+  /**
+   * When the entries of `flow()` need more than one slide: which of these
+   * slides to render, 0-based. `countFlowPages` tells how many there are;
+   * `renderDeck` adds them by itself. Default: 0, the first one.
+   */
+  flowPage?: number;
+  /** Called with the number of slides the `flow()` lists of a slide need. */
+  onFlowPages?: (pages: number) => void;
 };
 
 export type TemplateCommandType =

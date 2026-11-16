@@ -5,6 +5,7 @@ import IArchive from '../../interfaces/iarchive';
 import { RootPresTemplate } from '../../interfaces/root-pres-template';
 import { RenderContext, TemplateRenderer } from './renderer';
 import { RenderTemplateOptions, TemplateData } from './types';
+import { loadSlideStyles } from '../text-flow';
 
 /** What slide.modify() passes as second argument (a Slide/Master/Layout). */
 type PartContext = {
@@ -63,6 +64,10 @@ export const renderTemplate =
           relations: await relations(),
         };
       },
+      styles: async () =>
+        part?.targetArchive && part.targetPath
+          ? loadSlideStyles(part.targetArchive, part.targetPath)
+          : undefined,
     };
 
     const renderer = new TemplateRenderer(await data, options, renderContext);

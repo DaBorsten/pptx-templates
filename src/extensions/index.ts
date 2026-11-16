@@ -17,7 +17,7 @@ export const extensionModifiers = {
 
 export * from './template-logic';
 export * from './template-lint';
-export { renderDeck } from './template-render';
+export { renderDeck, countFlowPages } from './template-render';
 export type { RenderDeckOptions } from './template-render';
 export { ShapePresets } from './shape-geometry';
 // `export type`: Bun transpiles file by file and can't tell types from

@@ -272,6 +272,10 @@ pres.addSlide('TextReplace.pptx', 1, (slide) => {
 | `processLineBreaks` | `true` | Turn `\n` in inserted values into line breaks |
 | `fixSmartQuotes` | `false` | Replace typographic quotes (`“ ” „ ‘ ’ ‚`) with straight ones before parsing, as in docx-templates |
 | `imageRoot` | | Folder that file paths in `{{IMAGE}}` values are read from (`"images/logo.png"`). Paths cannot leave it |
+| `fonts` | | Font files or folders that [`flow()`](./text-flow.md) measures text with, searched before the system fonts |
+| `flowOverflow` | `'warn'` | `'error'`: throw when entries of [`flow()`](./text-flow.md) fit into none of its text boxes |
+| `flowPage` | `0` | Which of the slides a [`flow()`](./text-flow.md) list needs to render (0-based); see `countFlowPages` |
+| `onFlowPages` | | Called with the number of slides the `flow()` lists of a slide need |
 
 ## Rendering a whole deck
 
@@ -296,6 +300,8 @@ It takes the [options](#options) of `renderTemplate`, plus `slides` to keep
 only some slides in a new order (`slides: [3, 1]`). A tag that fails rejects
 with a `TemplateRenderError` whose message starts with the slide number:
 `slide 2: {{euro(p.preis)}}: Not a function …`.
+A slide whose [`flow()`](./text-flow.md) list is longer than its text boxes
+is repeated as often as the list needs.
 
 The same from the command line:
 
