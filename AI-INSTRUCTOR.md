@@ -1067,6 +1067,56 @@ The number can differ from box to box (`flow(items, 2)` in the first one,
 (`flow(items, perBox)`). With three such boxes and seven entries,
 `renderDeck` makes three slides: 1 2 3, 4 5 6, 7.
 
+### Cards: one entry in several text boxes
+
+Sometimes an entry fills more than one text box, such as a column with a
+project on a CV page: one box for the customer, one for the content with
+bullets, one for the period, each with a size of its own. Select the shapes
+of each column in PowerPoint, background and lines included, and group them
+(Ctrl+G). Then write the loop into every text box of the group:
+
+```text
+{{FOR p IN flow(projects, 1)}}
+Customer: {{p.customer}}
+{{END-FOR}}
+```
+
+```text
+Content:
+{{FOR p IN flow(projects, 1)}}
+{{p.content}}
+{{END-FOR}}
+```
+
+The flow boxes of one list inside one group form a card, and all boxes of a
+card show the same entries. An entry goes into a card only if its part fits
+into every box of the card; otherwise it goes on to the next card. The cards
+are filled in reading order like single boxes, and `renderDeck` continues on
+a copy of the slide when they are full. With three cards and seven projects,
+that makes three slides: 1 2 3, 4 5 6, 7.
+
+A card that stays empty, such as the last two columns of the last slide, is
+removed with everything in its group. A box that is not in a group is a card
+of its own, as before. Without `, 1`, a card takes as many entries as fit
+into all of its boxes.
+
+### Counting instead of measuring
+
+When every box or card takes a fixed number of entries anyway, the
+measuring can be switched off with a third argument:
+
+```text
+{{FOR p IN flow(projects, 1, { measure: false })}}
+Customer: {{p.customer}}
+{{END-FOR}}
+```
+
+Then `flow()` only counts: one project per card, and once all cards of the
+slide are filled, the rest continues on copies of the slide. Fonts and box
+heights play no part. A text that is too long stays in its box and runs
+over its edge in PowerPoint, instead of moving to the next card. The number
+of entries per box is required with `{ measure: false }`.
+
 ### How it measures
 
 Before the boxes are filled, every entry is rendered once into a copy of each
@@ -1133,18 +1183,26 @@ first how many slides the list needs and add them yourself. `flowPage` (0-based)
 picks the part of the list each one shows:
 
 ```ts
-import { countFlowPages, modify } from 'pptx-templates';
+import { countFlowPages, FlowCache, modify } from 'pptx-templates';
 
 const items = [{ title: 'Apples', text: 'Grown in the valley …' }];
 const data = { items };
 
-const pages = await countFlowPages('templates/Columns.pptx', 1, data);
+const flowCache = new FlowCache();
+const pages = await countFlowPages('templates/Columns.pptx', 1, data, {
+  flowCache,
+});
 for (let page = 0; page < pages; page++) {
   pres.addSlide('Columns.pptx', 1, (slide) => {
-    slide.modify(modify.renderTemplate(data, { flowPage: page }));
+    slide.modify(modify.renderTemplate(data, { flowPage: page, flowCache }));
   });
 }
 ```
+
+The `flowCache` is optional. Measuring a long list takes time, and with the
+cache the copies of the slide share one measurement instead of each
+measuring the whole list again. Use a `new FlowCache()` per template slide
+and set of data. `renderDeck` does this by itself.
 
 `flowRest(list)` returns the entries after the current slide, for example
 for a note at the bottom:

@@ -28,6 +28,17 @@ semver, with the pre-1.0 convention that **breaking changes bump the minor**.
   `flowRest(list)` returns the entries after the current slide. Without
   `flowPage`, entries that need another slide are logged as a warning, or
   rejected with `flowOverflow: 'error'`.
+- `flow()` cards: the flow boxes of a list inside one PowerPoint group show
+  the same entries, so an entry can fill several text boxes (a column of a
+  CV page with customer, content and period). An entry goes into a card
+  only if it fits into every box of it. Cards left empty on the last slide
+  are removed with their group. `flow(list, n, { measure: false })`
+  distributes by count only, without measuring the text.
+- `flowCache` option with `new FlowCache()`: the copies of a slide share
+  one measurement of a `flow()` list instead of measuring it once per copy
+  (40 slides of cards: 4 s instead of 110 s). `renderDeck` uses it by
+  itself; with `addSlide`, pass one cache to `countFlowPages` and to every
+  `flowPage` render of the slide.
 - The linter and `templateDataSkeleton` know `flow()` and `flowRest()`:
   no "unknown variable" for them, and the entries of `flow(items)` are
   traced to `items[]`.
