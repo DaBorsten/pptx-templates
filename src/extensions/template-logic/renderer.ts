@@ -342,10 +342,7 @@ export class TemplateRenderer {
               this.flowLimits.set(body, this.compile(call.limit, match[0]));
             }
             if (call.options) {
-              this.flowOptions.set(
-                body,
-                this.compile(call.options, match[0]),
-              );
+              this.flowOptions.set(body, this.compile(call.options, match[0]));
             }
           });
         }

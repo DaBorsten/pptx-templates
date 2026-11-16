@@ -111,6 +111,12 @@ const project = (n: number, content = lorem) => ({
   period: `${n}/2020`,
 });
 
+/** The text of an XML fragment: the content of all a:t, joined by `sep`. */
+const textOf = (xml: string, sep = ''): string =>
+  [...xml.matchAll(/<a:t(?:\s[^>]*)?>([^<]*)<\/a:t>/g)]
+    .map((m) => m[1])
+    .join(sep);
+
 /** Per slide: per card, left to right, its text (runs joined). */
 const deckCards = async (pptx: Buffer) => {
   const zip = await JSZip.loadAsync(pptx);
@@ -134,14 +140,11 @@ const deckCards = async (pptx: Buffer) => {
         .map((m) => m[0])
         .map((group) => ({
           x: Number(/<a:off x="(\d+)"/.exec(group)[1]),
-          text: group
-            .replace(/<[^>]+>/g, ' ')
-            .replace(/\s+/g, ' ')
-            .trim(),
+          text: textOf(group, ' ').replace(/\s+/g, ' ').trim(),
           backgrounds: (group.match(/val="E6E6E6"/g) ?? []).length,
         }))
         .sort((a, b) => a.x - b.x);
-      return { text: xml.replace(/<[^>]+>/g, ''), cards };
+      return { text: textOf(xml), cards };
     }),
   );
 };
