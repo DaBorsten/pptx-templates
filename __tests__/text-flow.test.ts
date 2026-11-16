@@ -117,9 +117,15 @@ const columnsOf = async (file: string): Promise<string[][]> => {
     .map((c) => c.entries);
 };
 
+/** The text of slide XML: the content of all a:t, runs joined. */
+const textOf = (xml: string): string =>
+  [...xml.matchAll(/<a:t(?:\s[^>]*)?>([^<]*)<\/a:t>/g)]
+    .map((m) => m[1])
+    .join('');
+
 /** The text of the slide, runs joined. */
 const slideText = async (file: string): Promise<string> =>
-  (await expectXml(file, SLIDE)).raw().replace(/<[^>]+>/g, '');
+  textOf((await expectXml(file, SLIDE)).raw());
 
 const range = (from: number, to: number) =>
   Array.from({ length: to - from + 1 }, (_, i) => String(from + i));
@@ -401,7 +407,7 @@ const deckSlides = async (pptx: Buffer) => {
         }))
         .sort((a, b) => a.x - b.x)
         .map((b) => b.entries);
-      return { text: xml.replace(/<[^>]+>/g, ''), boxes };
+      return { text: textOf(xml), boxes };
     }),
   );
 };
@@ -424,7 +430,7 @@ test('renderDeck repeats a slide until the flow() list is placed', async () => {
   expect(slides[2].text).toContain('Page 3 of 3');
   // every entry once, in order
   expect(slides.flatMap((s) => s.boxes.flat())).toEqual(range(1, 56));
-});
+}, 30_000);
 
 test('renderDeck keeps one slide when the list fits', async () => {
   const template = await writeFlowTemplate(

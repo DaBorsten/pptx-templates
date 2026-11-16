@@ -102,7 +102,12 @@ const buildDeck = async (
 const usesFlow = async (content: Buffer, number: number): Promise<boolean> => {
   const zip = await JSZip.loadAsync(content);
   const xml = await zip.file(`ppt/slides/slide${number}.xml`)?.async('string');
-  return !!xml && /flow\s*\(/.test(xml.replace(/<[^>]+>/g, ''));
+  if (!xml) return false;
+  // Runs joined: a tag can be split across several a:t
+  const text = [...xml.matchAll(/<a:t(?:\s[^>]*)?>([^<]*)<\/a:t>/g)]
+    .map((m) => m[1])
+    .join('');
+  return /flow\s*\(/.test(text);
 };
 
 /**
