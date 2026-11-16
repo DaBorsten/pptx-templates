@@ -4,6 +4,7 @@ import {
   ShapeAdjustments,
   ShapePreset,
 } from '../shape-geometry/types';
+import type { FlowCache } from '../text-flow/flow';
 
 /** Values (and functions) the expressions in template tags can reference. */
 export type TemplateData = Record<string, unknown>;
@@ -82,6 +83,13 @@ export type RenderTemplateOptions = {
   flowPage?: number;
   /** Called with the number of slides the `flow()` lists of a slide need. */
   onFlowPages?: (pages: number) => void;
+  /**
+   * A `new FlowCache()` shared by the renders of one template slide with
+   * one set of data (`countFlowPages` and each `flowPage`): the list is
+   * measured once instead of once per copy. `renderDeck` does this by
+   * itself.
+   */
+  flowCache?: FlowCache;
 };
 
 export type TemplateCommandType =

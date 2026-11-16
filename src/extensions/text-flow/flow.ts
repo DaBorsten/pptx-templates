@@ -28,6 +28,8 @@ export type FlowOptions = {
   flowPage?: number;
   /** Called with the number of slides the lists of the slide need. */
   onFlowPages?: (pages: number) => void;
+  /** Keeps the distribution for the other copies of the slide. */
+  flowCache?: FlowCache;
 };
 
 type Box = {
@@ -39,17 +41,94 @@ type Box = {
   tail: ParagraphMetrics[];
   /** Paragraphs of each entry. */
   entries: ParagraphMetrics[][];
+  /** false: `{ measure: false }`, entries are counted only. */
+  measured: boolean;
 };
 
-type Plan = {
+/**
+ * Boxes that take the same entries: the flow boxes of one list inside one
+ * PowerPoint group (a card), or a single box outside of groups.
+ */
+type Slot = {
+  boxes: Box[];
+  /** The p:grpSp of a card. */
+  group?: XmlElement;
+  /** Top left corner on the slide, in points (reading order). */
+  x: number;
+  y: number;
+};
+
+/**
+ * Where the entries of a list go. It names a box by its position among the
+ * flow boxes of the slide, so it holds for every copy of the slide.
+ */
+export type FlowPlan = {
   list: unknown[];
   /** Per slide (page): the entries of each box. */
-  pages: Map<XmlElement, number[]>[];
+  pages: Map<number, number[]>[];
   /** Per page: the index of the first entry after it. */
   ends: number[];
+  /** Names of the boxes, for messages. */
+  names: string[];
 };
 
+/**
+ * Measuring a list takes most of the time of `flow()`. A cache passed as
+ * `flowCache` to every render of one template slide (`countFlowPages` and
+ * the `flowPage` copies) lets them share one measurement. A render whose
+ * boxes, limits, text around the loop or list differ measures again. Use
+ * one cache per template slide and set of data.
+ */
+export class FlowCache {
+  /** @internal */
+  readonly plans = new Map<string, FlowPlan>();
+}
+
+const sameList = (a: unknown[], b: unknown[]): boolean =>
+  a.length === b.length && a.every((entry, i) => entry === b[i]);
+
 const TOLERANCE = 0.01;
+const EMU_PER_PT = 12700;
+
+const childOf = (parent: XmlElement | undefined, tagName: string) => {
+  for (let n = parent?.firstChild; n; n = n.nextSibling) {
+    if ((n as XmlElement).tagName === tagName) return n as XmlElement;
+  }
+  return undefined;
+};
+
+const emuAttr = (el: XmlElement | undefined, name: string): number =>
+  Number(el?.getAttribute(name) ?? 0) / EMU_PER_PT;
+
+/** The nearest p:grpSp around a shape, if it is grouped. */
+const groupOf = (shape: XmlElement): XmlElement | undefined => {
+  const parent = shape?.parentNode as XmlElement;
+  return parent?.tagName === 'p:grpSp' ? parent : undefined;
+};
+
+/**
+ * A point in the coordinates of `shape`'s parent, mapped onto the slide
+ * through the transforms of the groups around it.
+ */
+const toSlide = (
+  shape: XmlElement,
+  point: { x: number; y: number },
+): { x: number; y: number } => {
+  let { x, y } = point;
+  for (let group = groupOf(shape); group; group = groupOf(group)) {
+    const xfrm = childOf(childOf(group, 'p:grpSpPr'), 'a:xfrm');
+    if (!xfrm) continue;
+    const off = childOf(xfrm, 'a:off');
+    const ext = childOf(xfrm, 'a:ext');
+    const chOff = childOf(xfrm, 'a:chOff');
+    const chExt = childOf(xfrm, 'a:chExt');
+    const scale = (e: string) =>
+      emuAttr(chExt, e) ? emuAttr(ext, e) / emuAttr(chExt, e) : 1;
+    x = emuAttr(off, 'x') + (x - emuAttr(chOff, 'x')) * scale('cx');
+    y = emuAttr(off, 'y') + (y - emuAttr(chOff, 'y')) * scale('cy');
+  }
+  return { x, y };
+};
 
 /** A `flow(…)` call: its argument as written, and without whitespace. */
 export type FlowCall = {
@@ -57,6 +136,8 @@ export type FlowCall = {
   key: string;
   /** Source of the second argument: at most this many entries per box. */
   limit?: string;
+  /** Source of the third argument, such as `{ measure: false }`. */
+  options?: string;
 };
 
 /** Calls of `flow(…)` (or `flowRest(…)`) in a text. */
@@ -85,10 +166,15 @@ export const flowArguments = (text: string, name = 'flow'): FlowCall[] => {
       commas.length > 0
         ? text.slice(commas[0] + 1, commas[1] ?? end).trim()
         : '';
+    const options =
+      commas.length > 1
+        ? text.slice(commas[1] + 1, commas[2] ?? end).trim()
+        : '';
     args.push({
       source,
       key: source.replace(/\s+/g, ''),
       ...(limit ? { limit } : {}),
+      ...(options ? { options } : {}),
     });
   }
   return args;
@@ -115,8 +201,12 @@ const textOf = (paragraph: XmlElement): string =>
 export class TextFlow {
   /** Flow boxes (their p:txBody) and the source of their flow() argument. */
   private readonly keys = new Map<XmlElement, string>();
-  private readonly plans = new Map<string, Promise<Plan>>();
-  private readonly resolved = new Map<string, Plan>();
+  /** Position of each flow box among the flow boxes of the slide. */
+  private readonly indexes = new Map<XmlElement, number>();
+  /** Each box as it is in the template: its shape and the groups around. */
+  private readonly fingerprints = new Map<XmlElement, string>();
+  private readonly plans = new Map<string, Promise<FlowPlan>>();
+  private readonly resolved = new Map<string, FlowPlan>();
   private readonly fonts: FontRegistry;
   private readonly serializer = new XMLSerializer();
 
@@ -125,7 +215,13 @@ export class TextFlow {
     private readonly host: FlowHost,
     private readonly options: FlowOptions = {},
   ) {
-    boxes.forEach((key, body) => this.keys.set(body, key));
+    boxes.forEach((key, body) => {
+      this.keys.set(body, key);
+      this.indexes.set(body, this.indexes.size);
+      if (options.flowCache) {
+        this.fingerprints.set(body, this.fingerprint(body));
+      }
+    });
     this.fonts = new FontRegistry(options.fonts ?? []);
   }
 
@@ -143,6 +239,8 @@ export class TextFlow {
     key: string,
     list: unknown,
     limits = new Map<XmlElement, number>(),
+    /** Boxes of `flow(list, n, { measure: false })`. */
+    unmeasured = new Set<XmlElement>(),
   ): Promise<void> {
     const groups = this.groups();
     const group = groups.includes(key)
@@ -157,7 +255,8 @@ export class TextFlow {
       const entries = this.toList(list);
       this.plans.set(
         group,
-        this.computePlan(group, entries, limits).then((plan) => {
+        this.plan(group, entries, limits, unmeasured).then((plan) => {
+          this.reportOverflow(group, plan);
           this.resolved.set(group, plan);
           this.options.onFlowPages?.(this.pages);
           return plan;
@@ -178,8 +277,8 @@ export class TextFlow {
     const plan = this.resolved.get(key);
     if (!plan) throw new Error(`flow(${key}) was not prepared`);
     const entries = this.toList(list);
-    const page = plan.pages[this.page] ?? new Map<XmlElement, number[]>();
-    return (page.get(body) ?? []).map((i) =>
+    const page = plan.pages[this.page];
+    return (page?.get(this.indexes.get(body)) ?? []).map((i) =>
       i < entries.length ? entries[i] : plan.list[i],
     );
   }
@@ -213,6 +312,23 @@ export class TextFlow {
     return Math.max(1, ...counts);
   }
 
+  /**
+   * Cards (PowerPoint groups with flow boxes) that stay empty on the
+   * rendered slide, such as the last columns of the last slide.
+   */
+  emptyGroups(): XmlElement[] {
+    const used = new Map<XmlElement, boolean>();
+    this.keys.forEach((key, body) => {
+      const group = groupOf(body.parentNode as XmlElement);
+      if (!group) return;
+      const plan = this.resolved.get(key);
+      const page = plan?.pages[this.page];
+      const filled = !plan || !!page?.get(this.indexes.get(body))?.length;
+      used.set(group, (used.get(group) ?? false) || filled);
+    });
+    return [...used].filter(([, filled]) => !filled).map(([group]) => group);
+  }
+
   private get page(): number {
     return this.options.flowPage ?? 0;
   }
@@ -225,49 +341,110 @@ export class TextFlow {
     return Array.from(value as Iterable<unknown>);
   }
 
+  private bodiesOf(key: string): XmlElement[] {
+    return [...this.keys].filter(([, k]) => k === key).map(([body]) => body);
+  }
+
+  /** The shape of a box and the transforms of the groups around it. */
+  private fingerprint(body: XmlElement): string {
+    const shape = body.parentNode as XmlElement;
+    const parts = [this.serializer.serializeToString(shape)];
+    for (let group = groupOf(shape); group; group = groupOf(group)) {
+      const properties = childOf(group, 'p:grpSpPr');
+      parts.push(
+        properties ? this.serializer.serializeToString(properties) : '',
+      );
+    }
+    return parts.join('\n');
+  }
+
+  /**
+   * The plan of a list: from the cache if another copy of the slide has
+   * distributed the same entries over the same boxes, else computed.
+   */
+  private async plan(
+    key: string,
+    list: unknown[],
+    limits: Map<XmlElement, number>,
+    unmeasured: Set<XmlElement>,
+  ): Promise<FlowPlan> {
+    const cache = this.options.flowCache;
+    if (!cache) return this.computePlan(key, list, limits, unmeasured);
+
+    // Everything the distribution depends on, besides the entries: the
+    // boxes, their limits and the paragraphs around the loop, which can
+    // differ from copy to copy ({{IF flowPage > 1}}…)
+    const parts = [key];
+    for (const body of this.bodiesOf(key)) {
+      const measured = !unmeasured.has(body);
+      const fixed = measured ? await this.host.renderCopy(body, []) : [];
+      parts.push(
+        String(this.indexes.get(body)),
+        String(limits.get(body) ?? ''),
+        String(measured),
+        this.fingerprints.get(body),
+        ...fixed.map((p) => this.serializer.serializeToString(p)),
+      );
+    }
+    const signature = parts.join('\n');
+    const cached = cache.plans.get(signature);
+    if (cached && sameList(cached.list, list)) return cached;
+    const plan = await this.computePlan(key, list, limits, unmeasured);
+    cache.plans.set(signature, plan);
+    return plan;
+  }
+
   private async computePlan(
     key: string,
     list: unknown[],
     limits: Map<XmlElement, number>,
-  ): Promise<Plan> {
-    const bodies = [...this.keys]
-      .filter(([, k]) => k === key)
-      .map(([body]) => body);
+    unmeasured: Set<XmlElement>,
+  ): Promise<FlowPlan> {
+    const bodies = this.bodiesOf(key);
     const styles = await this.host.styles();
     const boxes: Box[] = [];
     for (const body of bodies) {
-      boxes.push(await this.measureBox(body, list, styles));
+      boxes.push(
+        unmeasured.has(body)
+          ? this.unmeasuredBox(body, styles, limits)
+          : await this.measureBox(body, list, styles),
+      );
     }
 
-    // reading order: columns left to right, inside a column top to bottom
-    boxes.sort((a, b) =>
-      Math.abs(a.geometry.x - b.geometry.x) > 1
-        ? a.geometry.x - b.geometry.x
-        : a.geometry.y - b.geometry.y,
-    );
+    const slots = this.slotsOf(boxes);
 
-    const pages: Map<XmlElement, number[]>[] = [];
+    const pages: Map<number, number[]>[] = [];
     const ends: number[] = [];
     let next = 0;
-    // Fill the boxes, then the same boxes on the next slide, … until an
+    // Fill the slots, then the same slots on the next slide, … until an
     // entry fits into none of them (or all are placed)
     for (;;) {
       const start = next;
-      const page = new Map<XmlElement, number[]>();
-      for (const box of boxes) {
+      const page = new Map<number, number[]>();
+      for (const slot of slots) {
         const taken: number[] = [];
-        const limit = limits.get(box.body) ?? Infinity;
+        const limit = Math.min(
+          ...slot.boxes.map((b) => limits.get(b.body) ?? Infinity),
+        );
         while (next < list.length && taken.length < limit) {
-          const paragraphs = [
-            ...box.head,
-            ...[...taken, next].flatMap((i) => box.entries[i]),
-            ...box.tail,
-          ];
-          // an entry too large for this box tries the next one
-          if (stackHeight(paragraphs) > box.geometry.height + TOLERANCE) break;
+          // an entry too large for this slot tries the next one; in a
+          // card, its part has to fit into every box
+          const fits = slot.boxes.every(
+            (box) =>
+              !box.measured ||
+              stackHeight([
+                ...box.head,
+                ...[...taken, next].flatMap((i) => box.entries[i]),
+                ...box.tail,
+              ]) <=
+                box.geometry.height + TOLERANCE,
+          );
+          if (!fits) break;
           taken.push(next++);
         }
-        page.set(box.body, taken);
+        slot.boxes.forEach((box) =>
+          page.set(this.indexes.get(box.body), taken),
+        );
       }
       // a slide without progress: the next entry fits into no box
       if (next === start && pages.length) break;
@@ -276,20 +453,78 @@ export class TextFlow {
       if (next >= list.length || next === start) break;
     }
 
-    const unplaced = list.length - next;
-    const shown = this.options.flowPage === undefined ? ends[0] : next;
+    return { list, pages, ends, names: boxes.map((b) => b.name) };
+  }
+
+  /** Entries this render leaves out: a warning, or an error. */
+  private reportOverflow(key: string, plan: FlowPlan): void {
+    const { list, pages, ends } = plan;
+    const placed = ends[ends.length - 1];
+    const unplaced = list.length - placed;
+    const shown = this.options.flowPage === undefined ? ends[0] : placed;
     const missing = list.length - shown;
-    if (missing) {
-      const where = `the text boxes ${boxes.map((b) => `"${b.name}"`).join(', ')}`;
-      const message = unplaced
-        ? `flow(${key}): ${unplaced} of ${list.length} entries fit into none of ${where}.`
-        : `flow(${key}): ${missing} of ${list.length} entries do not fit into ${where}; ` +
-          `the list needs ${pages.length} slides. flowRest(…) returns the entries ` +
-          'that are left, renderDeck adds the slides (see countFlowPages).';
-      if (this.options.flowOverflow === 'error') throw new Error(message);
-      log.warn(message);
+    if (!missing) return;
+    const where = `the text boxes ${plan.names.map((n) => `"${n}"`).join(', ')}`;
+    const message = unplaced
+      ? `flow(${key}): ${unplaced} of ${list.length} entries fit into none of ${where}.`
+      : `flow(${key}): ${missing} of ${list.length} entries do not fit into ${where}; ` +
+        `the list needs ${pages.length} slides. flowRest(…) returns the entries ` +
+        'that are left, renderDeck adds the slides (see countFlowPages).';
+    if (this.options.flowOverflow === 'error') throw new Error(message);
+    log.warn(message);
+  }
+
+  /**
+   * The slots in reading order: left to right, of slots on top of each
+   * other the upper one first. Boxes in one group form one slot.
+   */
+  private slotsOf(boxes: Box[]): Slot[] {
+    const slots = new Map<XmlElement, Slot>();
+    for (const box of boxes) {
+      const shape = box.body.parentNode as XmlElement;
+      const group = groupOf(shape);
+      const { x, y } = toSlide(shape, box.geometry);
+      const slot = slots.get(group ?? box.body);
+      if (slot) {
+        slot.boxes.push(box);
+        slot.x = Math.min(slot.x, x);
+        slot.y = Math.min(slot.y, y);
+      } else {
+        slots.set(group ?? box.body, { boxes: [box], group, x, y });
+      }
     }
-    return { list, pages, ends };
+    return [...slots.values()].sort((a, b) =>
+      Math.abs(a.x - b.x) > 1 ? a.x - b.x : a.y - b.y,
+    );
+  }
+
+  /** A box of `{ measure: false }`: only its position counts. */
+  private unmeasuredBox(
+    body: XmlElement,
+    slide: SlideStyles,
+    limits: Map<XmlElement, number>,
+  ): Box {
+    const name = shapeName(body);
+    if (!limits.has(body)) {
+      throw new Error(
+        `flow(): "${name}" has { measure: false } without a number of ` +
+          'entries per box, such as flow(projects, 1, { measure: false })',
+      );
+    }
+    const geometry = new ShapeStyles(
+      body.parentNode as XmlElement,
+      slide,
+      this.fonts,
+    ).geometry();
+    return {
+      body,
+      name,
+      geometry: geometry ?? { x: 0, y: 0, width: 0, height: 0 },
+      head: [],
+      tail: [],
+      entries: [],
+      measured: false,
+    };
   }
 
   private async measureBox(
@@ -375,6 +610,7 @@ export class TextFlow {
       head: measure(head),
       tail: measure(tail),
       entries,
+      measured: true,
     };
   }
 }

@@ -4,6 +4,7 @@ import type {
   RenderTemplateOptions,
   TemplateData,
 } from '../template-logic/types';
+import { FlowCache } from '../text-flow';
 
 export type RenderDeckOptions = RenderTemplateOptions & {
   /**
@@ -20,7 +21,7 @@ const toBuffer = (pptx: Buffer | Uint8Array | ArrayBuffer): Buffer =>
       ? Buffer.from(pptx)
       : Buffer.from(pptx.buffer, pptx.byteOffset, pptx.byteLength);
 
-type DeckSlide = { number: number; page?: number };
+type DeckSlide = { number: number; page?: number; flowCache?: FlowCache };
 
 const loadContent = async (
   pptx: string | Buffer | Uint8Array | ArrayBuffer,
@@ -63,14 +64,13 @@ const buildDeck = async (
     );
   }
 
-  for (const { number, page } of slides) {
+  for (const { number, page, flowCache } of slides) {
     pres.addSlide('deck', number, (slide) => {
-      const render = modify.renderTemplate(
-        data,
-        page === undefined
-          ? renderOptions
-          : { ...renderOptions, flowPage: page },
-      );
+      const render = modify.renderTemplate(data, {
+        ...renderOptions,
+        ...(flowCache ? { flowCache } : {}),
+        ...(page === undefined ? {} : { flowPage: page }),
+      });
       slide.modify(async (document, context) => {
         try {
           await render(document, context);
@@ -164,14 +164,25 @@ export const renderDeck = async (
   const content = await loadContent(pptx);
   return buildDeck(content, data, renderOptions, async (available) => {
     const result: DeckSlide[] = [];
+    // The copies of a slide share the measurement of its lists
+    const caches = new Map<number, FlowCache>();
     for (const number of slides ?? available) {
+      if (!caches.has(number)) caches.set(number, new FlowCache());
+      const flowCache = caches.get(number);
       // a slide whose flow() lists need more room repeats
       const pages =
         available.includes(number) && renderOptions.flowPage === undefined
-          ? await countFlowPages(content, number, data, renderOptions)
+          ? await countFlowPages(content, number, data, {
+              ...renderOptions,
+              flowCache,
+            })
           : 1;
       for (let page = 0; page < pages; page++) {
-        result.push({ number, page: pages > 1 ? page : undefined });
+        result.push({
+          number,
+          page: pages > 1 ? page : undefined,
+          flowCache,
+        });
       }
     }
     return result;

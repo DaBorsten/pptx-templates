@@ -242,6 +242,8 @@ export class TemplateRenderer {
   private readonly flowSources = new Map<string, string>();
   /** flow(list, n): the limit per box, as the expression `n`. */
   private readonly flowLimits = new Map<XmlElement, Expr>();
+  /** flow(list, n, options): the options per box, as an expression. */
+  private readonly flowOptions = new Map<XmlElement, Expr>();
   private currentBody?: XmlElement;
   /** Set while a copy of a body is rendered to measure it. */
   private flowOverride?: () => unknown[];
@@ -303,6 +305,11 @@ export class TemplateRenderer {
       }
     }
 
+    // flow() cards left without an entry (the last slide of a list)
+    this.textFlow
+      ?.emptyGroups()
+      .forEach((group) => group.parentNode?.removeChild(group));
+
     if (this.errors.length) {
       throw new TemplateRenderError(
         `Template rendering failed with ${this.errors.length} error(s):\n` +
@@ -333,6 +340,9 @@ export class TemplateRenderer {
             this.flowSources.set(call.key, call.source);
             if (call.limit) {
               this.flowLimits.set(body, this.compile(call.limit, match[0]));
+            }
+            if (call.options) {
+              this.flowOptions.set(body, this.compile(call.options, match[0]));
             }
           });
         }
@@ -377,6 +387,7 @@ export class TemplateRenderer {
         flowOverflow: this.options.flowOverflow,
         flowPage: this.options.flowPage,
         onFlowPages: this.options.onFlowPages,
+        flowCache: this.options.flowCache,
       },
     );
   }
@@ -428,6 +439,7 @@ export class TemplateRenderer {
               list.key,
               value,
               await this.flowLimitValues(scope, options),
+              await this.flowUnmeasured(scope, options),
             );
           }
           return expr.evaluate(scope, options);
@@ -455,6 +467,28 @@ export class TemplateRenderer {
       limits.set(body, limit);
     }
     return limits;
+  }
+
+  /** flow(list, n, { measure: false }): the boxes that are not measured. */
+  private async flowUnmeasured(
+    scope: Parameters<Expr['evaluate']>[0],
+    options: Parameters<Expr['evaluate']>[1],
+  ): Promise<Set<XmlElement>> {
+    const unmeasured = new Set<XmlElement>();
+    for (const [body, expr] of this.flowOptions) {
+      let value = expr.evaluate(scope, options);
+      if (isThenable(value)) value = await value;
+      if (value === null || typeof value !== 'object') {
+        throw new Error(
+          `flow(…, …, ${expr.source}): the options must be an object, ` +
+            `such as { measure: false }, not ${String(value)}`,
+        );
+      }
+      if ((value as { measure?: unknown }).measure === false) {
+        unmeasured.add(body);
+      }
+    }
+    return unmeasured;
   }
 
   /**
