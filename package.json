@@ -1,6 +1,6 @@
 {
   "name": "pptx-templates",
-  "version": "0.3.5",
+  "version": "0.3.6",
   "description": "Fill PowerPoint templates with data: tags, conditions and loops written into the slides, rendered from JavaScript or TypeScript",
   "homepage": "https://daborsten.github.io/pptx-templates/",
   "repository": {

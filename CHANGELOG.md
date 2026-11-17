@@ -6,6 +6,8 @@ semver, with the pre-1.0 convention that **breaking changes bump the minor**.
 
 ## [Unreleased]
 
+## [0.3.6] - 2026-11-17
+
 ### Added
 
 - `{{HIDE-SLIDE condition}}` in the speaker notes of a slide: `renderDeck`
@@ -312,7 +314,8 @@ for that history.
   into one `.png` part. The fallback now gets the same placeholder PNG that
   pptxgenjs 3.12 wrote.
 
-[Unreleased]: https://github.com/DaBorsten/pptx-templates/compare/v0.3.5...HEAD
+[Unreleased]: https://github.com/DaBorsten/pptx-templates/compare/v0.3.6...HEAD
+[0.3.6]: https://github.com/DaBorsten/pptx-templates/compare/v0.3.5...v0.3.6
 [0.3.5]: https://github.com/DaBorsten/pptx-templates/compare/v0.3.4...v0.3.5
 [0.3.4]: https://github.com/DaBorsten/pptx-templates/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/DaBorsten/pptx-templates/compare/v0.3.2...v0.3.3
