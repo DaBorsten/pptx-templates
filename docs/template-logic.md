@@ -55,6 +55,7 @@ pres.addSlide('TextReplace.pptx', 1, (slide) => {
 | `{{HTML expr}}` | Insert HTML as formatted paragraphs (bold, italic, lists, links, …) through the [HTML converter](./text.md) |
 | `{{LINK expr}}` | Insert a hyperlink. `expr` is a URL or `({ url, label })`. A number as `url` links to that slide of the output |
 | `{{IMAGE expr}}` | Place a picture where the shape is (see [Images](#images)). Needs `slide.modify` |
+| `{{HIDE-SLIDE expr}}` | In the speaker notes: `renderDeck` leaves the slide out when `expr` is true (see [Hide Slides](./hide-slide.md)). Anywhere else it is removed and does nothing |
 
 Keywords are case-insensitive. A block can sit inside one paragraph
 (`Status: {{IF ok}}fine{{ELSE}}broken{{END-IF}}`) or span paragraphs. A

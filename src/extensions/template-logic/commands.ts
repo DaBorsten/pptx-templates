@@ -71,6 +71,10 @@ export const parseCommand = (inner: string, tag: string): ParsedCommand => {
     return { type: 'FOR', name: m[1], code: m[2].trim() };
   }
   if (/^END-?FOR\b/i.test(content)) return { type: 'END-FOR', code: '' };
+  // `{{HIDE-SLIDE cond}}` in the speaker notes; without a condition: always
+  if ((m = /^HIDE-SLIDE(?:\s+([\s\S]*))?$/i.exec(content))) {
+    return { type: 'HIDE-SLIDE', code: (m[1] ?? '').trim() };
+  }
   if ((m = /^(?:EXEC\s+|!)([\s\S]+)$/i.exec(content))) {
     return { type: 'EXEC', code: m[1].trim() };
   }

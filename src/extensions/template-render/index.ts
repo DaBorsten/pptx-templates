@@ -4,7 +4,13 @@ import type {
   RenderTemplateOptions,
   TemplateData,
 } from '../template-logic/types';
-import { FlowCache } from '../text-flow';
+import { FlowCache, FlowPlan, flowPlanEntries, FlowShown } from '../text-flow';
+import {
+  evaluateHideConditions,
+  hideSlideConditions,
+  stripHideSlideTagsInDeck,
+  withSlideNumber,
+} from '../hide-slide';
 
 export type RenderDeckOptions = RenderTemplateOptions & {
   /**
@@ -21,7 +27,13 @@ const toBuffer = (pptx: Buffer | Uint8Array | ArrayBuffer): Buffer =>
       ? Buffer.from(pptx)
       : Buffer.from(pptx.buffer, pptx.byteOffset, pptx.byteLength);
 
-type DeckSlide = { number: number; page?: number; flowCache?: FlowCache };
+type DeckSlide = {
+  number: number;
+  page?: number;
+  flowCache?: FlowCache;
+  /** What the slides before it show, for flowContinue(). */
+  flowShown?: FlowShown;
+};
 
 const loadContent = async (
   pptx: string | Buffer | Uint8Array | ArrayBuffer,
@@ -64,11 +76,12 @@ const buildDeck = async (
     );
   }
 
-  for (const { number, page, flowCache } of slides) {
+  for (const { number, page, flowCache, flowShown } of slides) {
     pres.addSlide('deck', number, (slide) => {
       const render = modify.renderTemplate(data, {
         ...renderOptions,
         ...(flowCache ? { flowCache } : {}),
+        ...(flowShown ? { flowShown } : {}),
         ...(page === undefined ? {} : { flowPage: page }),
       });
       slide.modify(async (document, context) => {
@@ -85,6 +98,8 @@ const buildDeck = async (
 
   try {
     const zip = await pres.getJSZip();
+    // HIDE-SLIDE has been applied (or ignored by countFlowPages)
+    await stripHideSlideTagsInDeck(zip, renderOptions);
     return await zip.generateAsync({
       type: 'nodebuffer',
       compression: 'DEFLATE',
@@ -153,6 +168,12 @@ export const countFlowPages = async (
  * A slide whose `flow()` lists do not fit is repeated as often as needed,
  * each copy with the next entries (`flowPage` 1, 2, … in the template).
  *
+ * A slide with `{{HIDE-SLIDE condition}}` in its speaker notes is left out
+ * when the condition is true; the tag itself is removed from the notes.
+ *
+ * `flowContinue(list)` in a template is `list` without the entries that
+ * `flow()` shows on the slides before it, hidden copies not counted.
+ *
  * @param pptx Path to a .pptx file or its contents.
  */
 export const renderDeck = async (
@@ -162,27 +183,63 @@ export const renderDeck = async (
 ): Promise<Buffer> => {
   const { slides, ...renderOptions } = options;
   const content = await loadContent(pptx);
+  const zip = await JSZip.loadAsync(content);
   return buildDeck(content, data, renderOptions, async (available) => {
     const result: DeckSlide[] = [];
     // The copies of a slide share the measurement of its lists
     const caches = new Map<number, FlowCache>();
+    // flowContinue(): the entries of the flow() lists on the slides so far
+    const shown = new FlowShown();
     for (const number of slides ?? available) {
       if (!caches.has(number)) caches.set(number, new FlowCache());
       const flowCache = caches.get(number);
-      // a slide whose flow() lists need more room repeats
-      const pages =
-        available.includes(number) && renderOptions.flowPage === undefined
-          ? await countFlowPages(content, number, data, {
-              ...renderOptions,
-              flowCache,
-            })
-          : 1;
+      const flowShown = shown.clone();
+      const slideOptions = { ...renderOptions, flowShown };
+      const exists = available.includes(number);
+      // {{HIDE-SLIDE …}} in the notes, evaluated per copy of the slide
+      const hide = exists
+        ? await hideSlideConditions(zip, number, renderOptions)
+        : [];
+      const hidden = async (page: number, pages: number) => {
+        try {
+          return await evaluateHideConditions(
+            hide,
+            data,
+            slideOptions,
+            renderOptions.flowPage ?? page,
+            pages,
+          );
+        } catch (error) {
+          throw withSlideNumber(error, number);
+        }
+      };
+      // Hidden whatever flowPage is: no need to measure its lists
+      const perPage = hide.some((c) => /\bflowPages?\b/.test(c.code));
+      if (hide.length && !perPage && (await hidden(0, 1))) continue;
+
+      // a slide whose flow() lists need more room repeats. Measured also
+      // with a fixed flowPage: flowContinue() needs what the slide shows
+      const plans: { plan: FlowPlan; list: unknown }[] = [];
+      const counted = exists
+        ? await countFlowPages(content, number, data, {
+            ...slideOptions,
+            flowCache,
+            onFlowPlan: (plan, list) => plans.push({ plan, list }),
+          })
+        : 1;
+      const pages = renderOptions.flowPage === undefined ? counted : 1;
       for (let page = 0; page < pages; page++) {
+        if (perPage && (await hidden(page, counted))) continue;
         result.push({
           number,
           page: pages > 1 ? page : undefined,
           flowCache,
+          flowShown,
         });
+        const onSlide = renderOptions.flowPage ?? page;
+        plans.forEach(({ plan, list }) =>
+          shown.add(flowPlanEntries(plan, onSlide), list),
+        );
       }
     }
     return result;

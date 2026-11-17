@@ -20,6 +20,7 @@ const sidebars: SidebarsConfig = {
     'shape-geometry', // fork extension (see FORK.md)
     'template-lint', // fork extension (see FORK.md)
     'text-flow', // fork extension (see FORK.md)
+    'hide-slide', // fork extension (see FORK.md)
     'generation',
     'hyperlinks',
     'slide-management',

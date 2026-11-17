@@ -713,6 +713,7 @@ pres.addSlide('TextReplace.pptx', 1, (slide) => {
 | `{{HTML expr}}` | Insert HTML as formatted paragraphs (bold, italic, lists, links, …) through the [HTML converter](https://daborsten.github.io/pptx-templates/text.md) |
 | `{{LINK expr}}` | Insert a hyperlink. `expr` is a URL or `({ url, label })`. A number as `url` links to that slide of the output |
 | `{{IMAGE expr}}` | Place a picture where the shape is (see [Images](#images)). Needs `slide.modify` |
+| `{{HIDE-SLIDE expr}}` | In the speaker notes: `renderDeck` leaves the slide out when `expr` is true (see [Hide Slides](https://daborsten.github.io/pptx-templates/hide-slide.md)). Anywhere else it is removed and does nothing |
 
 Keywords are case-insensitive. A block can sit inside one paragraph
 (`Status: {{IF ok}}fine{{ELSE}}broken{{END-IF}}`) or span paragraphs. A
@@ -1228,6 +1229,41 @@ pres.addSlide('Columns.pptx', 1, (slide) => {
 });
 ```
 
+### Continuing on another slide
+
+`flowContinue(list)` is `list` without the entries that `flow()` shows on
+the slides before it in the output of `renderDeck`. A first slide can show
+as many projects as fit into one text box, and a second slide the rest, one
+per column:
+
+```text
+{{FOR p IN flow(projects)}}
+{{p.name}}
+{{END-FOR}}
+```
+
+```text
+{{FOR p IN flow(flowContinue(projects), 1)}}
+{{p.name}}
+{{END-FOR}}
+```
+
+Without more, the first slide would repeat until every project is on it.
+`{{HIDE-SLIDE flowPage > 1}}` in its speaker notes keeps only its first
+copy (see [Hide Slides](https://daborsten.github.io/pptx-templates/hide-slide.md)); entries of hidden copies count
+as not shown. The second slide repeats as usual while projects are left.
+
+- Objects are compared with `===`: the objects of your data count as shown
+  wherever `flow()` showed them. Strings and numbers count only for the
+  same list, `projects` itself or a `flowContinue(projects)`; of equal ones,
+  as many are skipped as were shown. A list built anew in the template
+  (`projects.map(…)`, `filter(…)`) is a different list.
+- With the `flowPage` option, each slide shows that part of its lists, and
+  `flowContinue()` goes on after it.
+- `{{HIDE-SLIDE !flowContinue(projects).length}}` leaves the second slide
+  out when the first one shows every project.
+- Outside `renderDeck`, `flowContinue(list)` is the whole list.
+
 ### Rules for the template
 
 - `{{FOR … IN flow(…)}}` and `{{END-FOR}}` each need a paragraph of their own,
@@ -1254,10 +1290,101 @@ pres.addSlide('Columns.pptx', 1, (slide) => {
   matters.
 - Hyphenation, kerning and right-to-left or East Asian line breaking rules
   are not taken into account.
-- `flow`, `flowRest`, `flowPage` and `flowPages` are built in. The same name
+- `flow`, `flowRest`, `flowContinue`, `flowPage` and `flowPages` are built in. The same name
   in your data or in `additionalJsContext` takes precedence.
 - To count the slides, `renderDeck` and `countFlowPages` render the slide
   once more. Functions in your data are called again then.
+
+## Hide Slides
+
+Some slides only make sense with the right data: a slide for further
+projects when there are more than two, a discount slide for VIP customers.
+Write `{{HIDE-SLIDE condition}}` into the **speaker notes** of the slide,
+and `renderDeck` leaves the slide out when the condition is true:
+
+```text
+{{HIDE-SLIDE projects.length <= 2}}
+```
+
+```ts
+import fs from 'fs';
+import { renderDeck } from 'pptx-templates';
+
+const projects = [{ name: 'Portal' }, { name: 'App' }];
+
+// The slide with the tag in its notes is not in the output
+fs.writeFileSync(
+  'output/Projects.pptx',
+  await renderDeck('templates/Projects.pptx', { projects }),
+);
+```
+
+The condition is an [expression](https://daborsten.github.io/pptx-templates/template-logic.md#expressions) like the
+one of `{{IF …}}`, with the data, `additionalJsContext` and the options of
+the render (`strict`, `fixSmartQuotes`, other delimiters, `errorHandler`).
+`pptx-templates render` on the command line does the same.
+
+- `{{HIDE-SLIDE}}` without a condition always hides the slide, for example
+  a slide that is still being worked on.
+- With several tags in the notes, the slide is left out as soon as one of
+  them is true.
+- The tags are removed from the notes of the output; the rest of the notes
+  stays. A paragraph that held nothing but the tag goes as well.
+- When every slide is hidden, the output has no slides.
+
+### Why the speaker notes
+
+The tag decides about the whole slide, not about a piece of text, so it
+belongs to the slide once. The notes exist once per slide and are not part
+of the design. On the slide itself, in a text box or a table,
+`{{HIDE-SLIDE …}}` is removed with a warning and does nothing; the
+[linter](https://daborsten.github.io/pptx-templates/template-lint.md) reports it there as `unsupported-location`.
+Other tags in the notes are not rendered and stay as they are.
+
+### Copies of a flow() slide
+
+A slide whose [`flow()`](https://daborsten.github.io/pptx-templates/text-flow.md) list needs more than one slide is
+repeated by `renderDeck`. The condition is evaluated for each copy, with
+`flowPage` (1, 2, …) and `flowPages`:
+
+```text
+{{HIDE-SLIDE flowPage > 3}}
+```
+
+keeps the first three copies of the slide and leaves out the rest.
+
+### With addSlide
+
+`renderTemplate` renders one slide and cannot take it out of the deck.
+With your own `addSlide` calls, ask `isSlideHidden` first and skip the
+slide:
+
+```ts
+import { isSlideHidden, modify } from 'pptx-templates';
+
+const data = { projects: [{ name: 'Portal' }] };
+
+if (!(await isSlideHidden('templates/Projects.pptx', 2, data))) {
+  pres.addSlide('Projects.pptx', 2, (slide) => {
+    slide.modify(modify.renderTemplate(data));
+  });
+}
+```
+
+It takes the options of `renderTemplate`, plus `flowPage` (0-based) and
+`flowPages` for a condition that depends on them. `addSlide` copies the
+notes as they are, tag included.
+
+### Good to know
+
+- An error in the condition rejects `renderDeck` with a
+  `TemplateRenderError` that starts with the slide number
+  (`slide 2: {{HIDE-SLIDE check()}}: …`), unless `errorHandler` returns a
+  value for it.
+- The tag must be in one paragraph of the notes. PowerPoint may split it
+  into several runs (spell check); that is fine.
+- `flow()` and `flowRest()` in the condition do not distribute anything:
+  `flow(list)` is the whole list there.
 
 ## Shape Geometry
 
@@ -1485,7 +1612,7 @@ npx pptx-templates lint --config other.json
 | `unmatched-tag` | error | `END-IF`, `END-FOR`, `ELSE`, `ELSE-IF` without an opening tag, or an `ELSE` after `ELSE` |
 | `unknown-alias` | error | `{{*name}}` without `{{ALIAS name …}}` on the slide |
 | `unsupported-location` | error | `IMAGE` in a table cell, `IMAGE` in a placeholder that inherits its position from the layout, `ELSE` that spans table rows |
-| `unsupported-location` | warning | Tags in slide layouts, masters, speaker notes, charts and SmartArt. `renderTemplate` does not render them, so they stay as they are |
+| `unsupported-location` | warning | Tags in slide layouts, masters, speaker notes, charts and SmartArt. `renderTemplate` does not render them, so they stay as they are. `{{HIDE-SLIDE …}}` belongs into the speaker notes (checked there like any expression) and is reported everywhere else |
 | `unknown-variable` | warning | A name that is not in `data`/`schema`/`additionalJsContext` and not defined by `FOR`, `EXEC` or an arrow function |
 | `unknown-property` | warning | A property path that does not exist, including methods: `user.name.lenght` on a string |
 | `not-a-list` | warning | `FOR` over a value that is not a list in the data |

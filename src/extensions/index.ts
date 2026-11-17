@@ -19,7 +19,9 @@ export * from './template-logic';
 export * from './template-lint';
 export { renderDeck, countFlowPages } from './template-render';
 export type { RenderDeckOptions } from './template-render';
-export { FlowCache } from './text-flow';
+export { FlowCache, FlowShown } from './text-flow';
+export { isSlideHidden } from './hide-slide';
+export type { IsSlideHiddenOptions } from './hide-slide';
 export { ShapePresets } from './shape-geometry';
 // `export type`: Bun transpiles file by file and can't tell types from
 // values in a mixed re-export; it would look for these at runtime.

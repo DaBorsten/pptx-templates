@@ -19,7 +19,8 @@ import {
   tagSyntax,
 } from './commands';
 import { ImageTarget, loadImage, placeImages } from './images';
-import { flowArguments, SlideStyles, TextFlow } from '../text-flow';
+import { flowArguments, FlowShown, SlideStyles, TextFlow } from '../text-flow';
+import { log } from '../../helper/logger';
 
 /** Access to the slide beyond its XML, resolved on first use. */
 export type RenderContext = {
@@ -56,7 +57,8 @@ type Directive =
   | { type: 'if' | 'elseif'; expr: Expr }
   | { type: 'for'; variable: string; expr: Expr }
   | { type: 'exec'; statements: Statement[] }
-  | { type: 'else' | 'endif' | 'endfor' | 'alias' };
+  | { type: 'else' | 'endif' | 'endfor' | 'alias' }
+  | { type: 'hideslide'; tag: string };
 
 type DirectiveType = Directive['type'];
 
@@ -127,6 +129,7 @@ const STRUCTURAL_TYPES: DirectiveType[] = [
   ...BLOCK_TYPES,
   'exec',
   'alias',
+  'hideslide',
   'html',
   'image',
 ];
@@ -267,6 +270,9 @@ export class TemplateRenderer {
       {
         flow: (list: unknown) => this.flowEntries(list),
         flowRest: (list: unknown) => this.flowRest(list),
+        // the entries no earlier slide of the deck shows (renderDeck)
+        flowContinue: (list: unknown) =>
+          (options.flowShown ?? new FlowShown()).continue(list),
         // 1-based number of this slide among the slides a list needs
         flowPage: (options.flowPage ?? 0) + 1,
         get flowPages() {
@@ -316,6 +322,18 @@ export class TemplateRenderer {
           this.errors.map((e) => `- ${e}`).join('\n'),
       );
     }
+  }
+
+  private hideSlideWarned = false;
+
+  /** `{{HIDE-SLIDE …}}` outside the speaker notes: removed, not applied. */
+  private warnHideSlide(tag: string): void {
+    if (this.hideSlideWarned) return;
+    this.hideSlideWarned = true;
+    log.warn(
+      `${tag} is ignored: HIDE-SLIDE works only in the speaker notes of a ` +
+        'slide. Move it there.',
+    );
   }
 
   /*
@@ -387,6 +405,7 @@ export class TemplateRenderer {
         flowOverflow: this.options.flowOverflow,
         flowPage: this.options.flowPage,
         onFlowPages: this.options.onFlowPages,
+        onFlowPlan: this.options.onFlowPlan,
         flowCache: this.options.flowCache,
       },
     );
@@ -719,6 +738,9 @@ export class TemplateRenderer {
         return { type: 'endfor' };
       case 'ALIAS':
         return { type: 'alias' };
+      case 'HIDE-SLIDE':
+        // Only the speaker notes decide (renderDeck); here it is removed
+        return { type: 'hideslide', tag };
       case 'EXEC':
         return {
           type: 'exec',
@@ -1022,6 +1044,9 @@ export class TemplateRenderer {
         current.nodes.push(...this.createRuns(run, this.format(value)));
         break;
       }
+      case 'hideslide':
+        this.warnHideSlide(directive.tag);
+        break;
       case 'exec':
         for (const statement of directive.statements) {
           const value = await evaluate(statement.expr);

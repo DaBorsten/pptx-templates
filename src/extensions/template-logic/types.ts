@@ -4,7 +4,7 @@ import {
   ShapeAdjustments,
   ShapePreset,
 } from '../shape-geometry/types';
-import type { FlowCache } from '../text-flow/flow';
+import type { FlowCache, FlowPlan, FlowShown } from '../text-flow/flow';
 
 /** Values (and functions) the expressions in template tags can reference. */
 export type TemplateData = Record<string, unknown>;
@@ -90,6 +90,14 @@ export type RenderTemplateOptions = {
    * itself.
    */
   flowCache?: FlowCache;
+  /**
+   * The entries that earlier slides show with `flow()`: `flowContinue(list)`
+   * leaves them out. `renderDeck` passes it by itself. Without it,
+   * `flowContinue(list)` is the whole list.
+   */
+  flowShown?: FlowShown;
+  /** Called with the distribution of each `flow()` list of the slide. */
+  onFlowPlan?: (plan: FlowPlan, list: unknown) => void;
 };
 
 export type TemplateCommandType =
@@ -104,7 +112,8 @@ export type TemplateCommandType =
   | 'ALIAS'
   | 'HTML'
   | 'LINK'
-  | 'IMAGE';
+  | 'IMAGE'
+  | 'HIDE-SLIDE';
 
 /** Value of an `{{IMAGE …}}` tag (docx-templates compatible). */
 export type TemplateImage = {
