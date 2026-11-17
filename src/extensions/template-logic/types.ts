@@ -97,7 +97,7 @@ export type RenderTemplateOptions = {
    */
   flowShown?: FlowShown;
   /** Called with the distribution of each `flow()` list of the slide. */
-  onFlowPlan?: (plan: FlowPlan) => void;
+  onFlowPlan?: (plan: FlowPlan, list: unknown) => void;
 };
 
 export type TemplateCommandType =

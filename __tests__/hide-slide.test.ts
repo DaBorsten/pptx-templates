@@ -347,3 +347,64 @@ test('flowContinue() goes on with the entries earlier slides do not show', async
     'Item 1',
   ]);
 });
+
+const flowLoop = (list: string, perBox: number) =>
+  `<a:p><a:r><a:t>{{FOR i IN flow(${list}, ${perBox}, { measure: false })}}</a:t></a:r></a:p>` +
+  '<a:p><a:r><a:t>Item {{i}}</a:t></a:r></a:p>' +
+  '<a:p><a:r><a:t>{{END-FOR}}</a:t></a:r></a:p>';
+
+test('flowContinue() skips strings and numbers only of the same list', async () => {
+  const pptx = await withNotes(
+    { 3: '{{HIDE-SLIDE true}}' },
+    {
+      1: flowLoop('tags', 5),
+      2: flowLoop('flowContinue(skills)', 5),
+    },
+  );
+  const out = await renderDeck(pptx, {
+    tags: ['Java'],
+    skills: ['Java', 'Go'],
+  });
+  expect((await deck(out)).map((s) => s.text)).toEqual([
+    'Item Java',
+    'Item JavaItem Go',
+  ]);
+});
+
+test('flowContinue() of a list derived with flowContinue() counts for the list', async () => {
+  const pptx = await withNotes(
+    { 1: '{{HIDE-SLIDE flowPage > 1}}' },
+    {
+      1: flowLoop('items', 1),
+      2: flowLoop('flowContinue(items)', 1),
+      3: flowLoop('flowContinue(items)', 1),
+    },
+  );
+  const out = await renderDeck(pptx, { items: ['a', 'b', 'c'] });
+  // slide 2 shows b and c; slide 3 has nothing left: one empty copy
+  expect((await deck(out)).map((s) => s.text)).toEqual([
+    'Item a',
+    'Item b',
+    'Item c',
+    '',
+  ]);
+});
+
+test('flowContinue() with an explicit flowPage option', async () => {
+  const pptx = await withNotes(
+    {},
+    {
+      1: flowLoop('items', 2),
+      2: flowLoop('flowContinue(items)', 1),
+    },
+  );
+  const out = await renderDeck(
+    pptx,
+    { items: [1, 2, 3, 4] },
+    { flowPage: 0, slides: [1, 2] },
+  );
+  expect((await deck(out)).map((s) => s.text)).toEqual([
+    'Item 1Item 2',
+    'Item 3',
+  ]);
+});

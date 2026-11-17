@@ -31,7 +31,7 @@ export type FlowOptions = {
   /** Keeps the distribution for the other copies of the slide. */
   flowCache?: FlowCache;
   /** Called with the distribution of each list (renderDeck: flowContinue). */
-  onFlowPlan?: (plan: FlowPlan) => void;
+  onFlowPlan?: (plan: FlowPlan, list: unknown) => void;
 };
 
 type Box = {
@@ -86,19 +86,45 @@ export class FlowCache {
   readonly plans = new Map<string, FlowPlan>();
 }
 
+const isObject = (value: unknown): value is object =>
+  (typeof value === 'object' && value !== null) || typeof value === 'function';
+
+/** The list a `flowContinue()` result was taken from. */
+const continuedFrom = new WeakMap<object, object>();
+
+/** The list of the data that `list` stands for. */
+const originOf = (list: unknown): object | undefined =>
+  isObject(list) ? (continuedFrom.get(list) ?? list) : undefined;
+
+const count = (counts: Map<unknown, number>, entry: unknown): void => {
+  counts.set(entry, (counts.get(entry) ?? 0) + 1);
+};
+
 /**
  * The entries that `flow()` lists of earlier slides of a deck show, for
- * `flowContinue(list)`. `renderDeck` keeps one by itself. Entries are
- * compared with `===`; of equal strings or numbers, as many are skipped as
- * were shown.
+ * `flowContinue(list)`. `renderDeck` keeps one by itself. Objects are
+ * compared with `===`, wherever they were shown. Strings and numbers count
+ * only for the same list (the array of the data, or a `flowContinue()` of
+ * it); of equal ones, as many are skipped as were shown.
  */
 export class FlowShown {
-  private readonly counts = new Map<unknown, number>();
+  private readonly objects = new Map<unknown, number>();
+  /** Strings, numbers, …: per list of the data. */
+  private readonly values = new Map<object | undefined, Map<unknown, number>>();
 
-  /** Marks `entries` as shown. */
-  add(entries: Iterable<unknown>): void {
+  /**
+   * Marks `entries` as shown; `list` is the list `flow()` got, for the
+   * strings and numbers among them.
+   */
+  add(entries: Iterable<unknown>, list?: unknown): void {
+    const origin = originOf(list);
     for (const entry of entries) {
-      this.counts.set(entry, (this.counts.get(entry) ?? 0) + 1);
+      if (isObject(entry)) {
+        count(this.objects, entry);
+      } else {
+        if (!this.values.has(origin)) this.values.set(origin, new Map());
+        count(this.values.get(origin), entry);
+      }
     }
   }
 
@@ -108,19 +134,27 @@ export class FlowShown {
     if (typeof (list as Iterable<unknown>)[Symbol.iterator] !== 'function') {
       throw new Error('flowContinue() needs a list');
     }
-    const left = new Map(this.counts);
-    return Array.from(list as Iterable<unknown>).filter((entry) => {
-      const count = left.get(entry) ?? 0;
-      if (!count) return true;
-      left.set(entry, count - 1);
+    const origin = originOf(list);
+    const values = this.values.get(origin);
+    const used = new Map<unknown, number>();
+    const result = Array.from(list as Iterable<unknown>).filter((entry) => {
+      const shown = (isObject(entry) ? this.objects : values)?.get(entry) ?? 0;
+      const skipped = used.get(entry) ?? 0;
+      if (skipped >= shown) return true;
+      used.set(entry, skipped + 1);
       return false;
     });
+    if (origin) continuedFrom.set(result, origin);
+    return result;
   }
 
   /** A copy that later `add` calls on this one do not change. */
   clone(): FlowShown {
     const copy = new FlowShown();
-    this.counts.forEach((count, entry) => copy.counts.set(entry, count));
+    this.objects.forEach((n, entry) => copy.objects.set(entry, n));
+    this.values.forEach((counts, origin) =>
+      copy.values.set(origin, new Map(counts)),
+    );
     return copy;
   }
 }
@@ -305,7 +339,7 @@ export class TextFlow {
         this.plan(group, entries, limits, unmeasured).then((plan) => {
           this.reportOverflow(group, plan);
           this.resolved.set(group, plan);
-          this.options.onFlowPlan?.(plan);
+          this.options.onFlowPlan?.(plan, list);
           this.options.onFlowPages?.(this.pages);
           return plan;
         }),

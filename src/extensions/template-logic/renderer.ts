@@ -19,12 +19,7 @@ import {
   tagSyntax,
 } from './commands';
 import { ImageTarget, loadImage, placeImages } from './images';
-import {
-  flowArguments,
-  FlowShown,
-  SlideStyles,
-  TextFlow,
-} from '../text-flow';
+import { flowArguments, FlowShown, SlideStyles, TextFlow } from '../text-flow';
 import { log } from '../../helper/logger';
 
 /** Access to the slide beyond its XML, resolved on first use. */

@@ -115,7 +115,7 @@ export const hideSlideConditions = async (
   );
 };
 
-/** A read-only scope: built-ins, then additionalJsContext, then data. */
+/** A read-only scope: data, then additionalJsContext, then the built-ins. */
 const scopeOf = (layers: Record<string, unknown>[]): TemplateScope => ({
   lookup(name: string) {
     for (const vars of layers) {

@@ -4,12 +4,7 @@ import type {
   RenderTemplateOptions,
   TemplateData,
 } from '../template-logic/types';
-import {
-  FlowCache,
-  FlowPlan,
-  flowPlanEntries,
-  FlowShown,
-} from '../text-flow';
+import { FlowCache, FlowPlan, flowPlanEntries, FlowShown } from '../text-flow';
 import {
   evaluateHideConditions,
   hideSlideConditions,
@@ -222,25 +217,29 @@ export const renderDeck = async (
       const perPage = hide.some((c) => /\bflowPages?\b/.test(c.code));
       if (hide.length && !perPage && (await hidden(0, 1))) continue;
 
-      // a slide whose flow() lists need more room repeats
-      const plans: FlowPlan[] = [];
-      const pages =
-        exists && renderOptions.flowPage === undefined
-          ? await countFlowPages(content, number, data, {
-              ...slideOptions,
-              flowCache,
-              onFlowPlan: (plan) => plans.push(plan),
-            })
-          : 1;
+      // a slide whose flow() lists need more room repeats. Measured also
+      // with a fixed flowPage: flowContinue() needs what the slide shows
+      const plans: { plan: FlowPlan; list: unknown }[] = [];
+      const counted = exists
+        ? await countFlowPages(content, number, data, {
+            ...slideOptions,
+            flowCache,
+            onFlowPlan: (plan, list) => plans.push({ plan, list }),
+          })
+        : 1;
+      const pages = renderOptions.flowPage === undefined ? counted : 1;
       for (let page = 0; page < pages; page++) {
-        if (perPage && (await hidden(page, pages))) continue;
+        if (perPage && (await hidden(page, counted))) continue;
         result.push({
           number,
           page: pages > 1 ? page : undefined,
           flowCache,
           flowShown,
         });
-        plans.forEach((plan) => shown.add(flowPlanEntries(plan, page)));
+        const onSlide = renderOptions.flowPage ?? page;
+        plans.forEach(({ plan, list }) =>
+          shown.add(flowPlanEntries(plan, onSlide), list),
+        );
       }
     }
     return result;

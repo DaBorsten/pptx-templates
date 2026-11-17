@@ -1253,8 +1253,13 @@ Without more, the first slide would repeat until every project is on it.
 copy (see [Hide Slides](https://daborsten.github.io/pptx-templates/hide-slide.md)); entries of hidden copies count
 as not shown. The second slide repeats as usual while projects are left.
 
-- Entries are compared with `===`: the objects of your data, or equal
-  strings and numbers as often as they were shown.
+- Objects are compared with `===`: the objects of your data count as shown
+  wherever `flow()` showed them. Strings and numbers count only for the
+  same list, `projects` itself or a `flowContinue(projects)`; of equal ones,
+  as many are skipped as were shown. A list built anew in the template
+  (`projects.map(…)`, `filter(…)`) is a different list.
+- With the `flowPage` option, each slide shows that part of its lists, and
+  `flowContinue()` goes on after it.
 - `{{HIDE-SLIDE !flowContinue(projects).length}}` leaves the second slide
   out when the first one shows every project.
 - Outside `renderDeck`, `flowContinue(list)` is the whole list.
