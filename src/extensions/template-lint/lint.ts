@@ -213,7 +213,9 @@ const OTHER_PARTS: {
   {
     pattern: /^ppt\/notesSlides\/notesSlide(\d+)\.xml$/,
     describe: () => 'speaker notes',
-    hint: 'renderTemplate does not render speaker notes.',
+    hint:
+      'renderTemplate does not render speaker notes. Only {{HIDE-SLIDE …}} ' +
+      'works there.',
   },
   {
     pattern: /^ppt\/charts\/chart(\d+)\.xml$/,
@@ -528,6 +530,14 @@ class TemplateLinter {
             }
             case 'ALIAS':
               break;
+            case 'HIDE-SLIDE':
+              tagReport({
+                severity: 'warning',
+                rule: 'unsupported-location',
+                message: `${raw} is ignored here: HIDE-SLIDE works only in the speaker notes`,
+                hint: 'Move the tag into the speaker notes of the slide. renderTemplate removes it from the slide text.',
+              });
+              break;
             case 'IMAGE': {
               const expr = check(command.code);
               for (const ref of expr?.imageSources() ?? []) {
@@ -803,6 +813,49 @@ class TemplateLinter {
     return known.kind === 'missing' ? ANY : this.model.element(known);
   }
 
+  /**
+   * Speaker notes: `{{HIDE-SLIDE …}}` is checked like an expression; any
+   * other tag is reported as not rendered (lintOtherPart).
+   */
+  lintNotes(part: string, slide: number | undefined, doc: XmlDocument): void {
+    const others: string[] = [];
+    descendants(doc, 'a:p').forEach((paragraph) => {
+      const text = descendants(paragraph, 'a:t')
+        .map((t) => t.textContent)
+        .join('');
+      const rest = text.replace(this.syntax.pattern, (raw, inner) => {
+        let command: ReturnType<typeof parseCommand>;
+        try {
+          command = this.parse(inner, new Map(), raw);
+        } catch {
+          return raw;
+        }
+        if (command.type !== 'HIDE-SLIDE') return raw;
+        this.enterTag(raw);
+        this.enterCode(command.code);
+        this.location = { part, ...(slide !== undefined && { slide }) };
+        const report = (issue: Omit<IssueInput, 'shape' | 'tag'>) =>
+          this.report(part, slide, {
+            ...issue,
+            tag: raw,
+            range: issue.range ?? { start: 0, end: raw.length },
+          });
+        if (command.code) {
+          const expr = this.checkExpression(
+            command.code,
+            new Map(),
+            new Set(),
+            report,
+          );
+          if (expr) this.recordUsage(expr, new Map(), false);
+        }
+        return '';
+      });
+      others.push(rest);
+    });
+    this.lintOtherPart(part, slide, others);
+  }
+
   lintOtherPart(
     part: string,
     slide: number | undefined,
@@ -949,6 +1002,10 @@ const runLinter = async (
     .sort((a, b) => a.localeCompare(b, 'en', { numeric: true }));
   for (const name of others) {
     const doc = parseXml(await zip.file(name).async('string'));
+    if (/^ppt\/notesSlides\//.test(name)) {
+      linter.lintNotes(name, slideOfPart.get(name), doc);
+      continue;
+    }
     const texts = [...descendants(doc, 'a:t'), ...descendants(doc, 'c:v')].map(
       (t) => t.textContent,
     );

@@ -104,7 +104,8 @@ export type TemplateCommandType =
   | 'ALIAS'
   | 'HTML'
   | 'LINK'
-  | 'IMAGE';
+  | 'IMAGE'
+  | 'HIDE-SLIDE';
 
 /** Value of an `{{IMAGE …}}` tag (docx-templates compatible). */
 export type TemplateImage = {

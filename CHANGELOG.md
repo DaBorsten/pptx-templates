@@ -6,6 +6,22 @@ semver, with the pre-1.0 convention that **breaking changes bump the minor**.
 
 ## [Unreleased]
 
+### Added
+
+- `{{HIDE-SLIDE condition}}` in the speaker notes of a slide: `renderDeck`
+  (and `pptx-templates render`) leaves the slide out when the condition is
+  true. Without a condition the slide is always left out; with several tags,
+  one true condition is enough. For the copies of a `flow()` slide the
+  condition is evaluated per copy, with `flowPage` and `flowPages`. The tag
+  is removed from the notes of the output. On the slide itself the tag is
+  removed with a warning and does nothing.
+- `isSlideHidden(pptx, slide, data, options)` tells `addSlide` users
+  whether to skip a slide.
+- The linter checks `{{HIDE-SLIDE …}}` in the speaker notes like any
+  expression (syntax, unknown names) and reports it as
+  `unsupported-location` anywhere else. `listTemplateCommands` lists it
+  with the type `HIDE-SLIDE`.
+
 ## [0.3.5] - 2026-11-16
 
 ### Added

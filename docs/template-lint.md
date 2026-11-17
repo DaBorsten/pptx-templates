@@ -135,7 +135,7 @@ npx pptx-templates lint --config other.json
 | `unmatched-tag` | error | `END-IF`, `END-FOR`, `ELSE`, `ELSE-IF` without an opening tag, or an `ELSE` after `ELSE` |
 | `unknown-alias` | error | `{{*name}}` without `{{ALIAS name …}}` on the slide |
 | `unsupported-location` | error | `IMAGE` in a table cell, `IMAGE` in a placeholder that inherits its position from the layout, `ELSE` that spans table rows |
-| `unsupported-location` | warning | Tags in slide layouts, masters, speaker notes, charts and SmartArt. `renderTemplate` does not render them, so they stay as they are |
+| `unsupported-location` | warning | Tags in slide layouts, masters, speaker notes, charts and SmartArt. `renderTemplate` does not render them, so they stay as they are. `{{HIDE-SLIDE …}}` belongs into the speaker notes (checked there like any expression) and is reported everywhere else |
 | `unknown-variable` | warning | A name that is not in `data`/`schema`/`additionalJsContext` and not defined by `FOR`, `EXEC` or an arrow function |
 | `unknown-property` | warning | A property path that does not exist, including methods: `user.name.lenght` on a string |
 | `not-a-list` | warning | `FOR` over a value that is not a list in the data |

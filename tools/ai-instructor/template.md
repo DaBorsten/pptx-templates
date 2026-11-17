@@ -47,6 +47,8 @@ PptxGenJS bridge (see below) when there is no reasonable template shape.
 
 <!-- include: docs/text-flow.md -->
 
+<!-- include: docs/hide-slide.md -->
+
 <!-- include: docs/shape-geometry.md -->
 
 <!-- include: docs/template-lint.md -->

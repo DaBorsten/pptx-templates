@@ -139,6 +139,7 @@ third.
 | `{{HTML expr}}` | Insert HTML as formatted text: bold, italic, lists, links |
 | `{{LINK expr}}` | Insert a hyperlink, to a URL or to a slide of the output |
 | `{{IMAGE expr}}` | Place a picture where the text box is, optionally cropped to a shape with a border |
+| `{{HIDE-SLIDE expr}}` | In the speaker notes: leave the slide out of the deck when `expr` is true |
 
 Expressions are JavaScript without the dangerous parts: property paths,
 comparisons, `&&`, `||`, `??`, `? :`, arrow functions
