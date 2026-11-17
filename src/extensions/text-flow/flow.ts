@@ -30,6 +30,8 @@ export type FlowOptions = {
   onFlowPages?: (pages: number) => void;
   /** Keeps the distribution for the other copies of the slide. */
   flowCache?: FlowCache;
+  /** Called with the distribution of each list (renderDeck: flowContinue). */
+  onFlowPlan?: (plan: FlowPlan) => void;
 };
 
 type Box = {
@@ -83,6 +85,51 @@ export class FlowCache {
   /** @internal */
   readonly plans = new Map<string, FlowPlan>();
 }
+
+/**
+ * The entries that `flow()` lists of earlier slides of a deck show, for
+ * `flowContinue(list)`. `renderDeck` keeps one by itself. Entries are
+ * compared with `===`; of equal strings or numbers, as many are skipped as
+ * were shown.
+ */
+export class FlowShown {
+  private readonly counts = new Map<unknown, number>();
+
+  /** Marks `entries` as shown. */
+  add(entries: Iterable<unknown>): void {
+    for (const entry of entries) {
+      this.counts.set(entry, (this.counts.get(entry) ?? 0) + 1);
+    }
+  }
+
+  /** The entries of `list` that are not shown yet, in their order. */
+  continue(list: unknown): unknown[] {
+    if (list === null || list === undefined) return [];
+    if (typeof (list as Iterable<unknown>)[Symbol.iterator] !== 'function') {
+      throw new Error('flowContinue() needs a list');
+    }
+    const left = new Map(this.counts);
+    return Array.from(list as Iterable<unknown>).filter((entry) => {
+      const count = left.get(entry) ?? 0;
+      if (!count) return true;
+      left.set(entry, count - 1);
+      return false;
+    });
+  }
+
+  /** A copy that later `add` calls on this one do not change. */
+  clone(): FlowShown {
+    const copy = new FlowShown();
+    this.counts.forEach((count, entry) => copy.counts.set(entry, count));
+    return copy;
+  }
+}
+
+/** The entries a plan puts onto one of its pages (0-based). */
+export const flowPlanEntries = (plan: FlowPlan, page: number): unknown[] => {
+  const indexes = new Set([...(plan.pages[page]?.values() ?? [])].flat());
+  return [...indexes].sort((a, b) => a - b).map((i) => plan.list[i]);
+};
 
 const sameList = (a: unknown[], b: unknown[]): boolean =>
   a.length === b.length && a.every((entry, i) => entry === b[i]);
@@ -258,6 +305,7 @@ export class TextFlow {
         this.plan(group, entries, limits, unmeasured).then((plan) => {
           this.reportOverflow(group, plan);
           this.resolved.set(group, plan);
+          this.options.onFlowPlan?.(plan);
           this.options.onFlowPages?.(this.pages);
           return plan;
         }),

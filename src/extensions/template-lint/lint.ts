@@ -33,6 +33,7 @@ import { DataSkeletonRecorder, TemplateDataSkeleton } from './skeleton';
 const BUILTIN_HELPERS: Record<string, unknown> = {
   flow: (list: unknown) => list,
   flowRest: (): unknown[] => [],
+  flowContinue: (list: unknown) => list,
   flowPage: 1,
   flowPages: 1,
 };

@@ -301,3 +301,49 @@ test('the linter checks HIDE-SLIDE in the notes and warns about it elsewhere', a
     issues.filter((i) => i.tag?.startsWith('{{HIDE-SLIDE projekts')),
   ).toHaveLength(1);
 });
+
+test('flowContinue() goes on with the entries earlier slides do not show', async () => {
+  const loop = (list: string, perBox: number) =>
+    `<a:p><a:r><a:t>{{FOR i IN flow(${list}, ${perBox}, { measure: false })}}</a:t></a:r></a:p>` +
+    '<a:p><a:r><a:t>Item {{i}}</a:t></a:r></a:p>' +
+    '<a:p><a:r><a:t>{{END-FOR}}</a:t></a:r></a:p>';
+  const pptx = await withNotes(
+    {
+      // only the first copy of slide 1
+      1: '{{HIDE-SLIDE flowPage > 1}}',
+      2: '{{HIDE-SLIDE compact}}',
+      3: '{{HIDE-SLIDE !flowContinue(items).length}}',
+    },
+    {
+      1: loop('items', 2),
+      2: loop('again ? items : flowContinue(items)', 1),
+      3: loop('flowContinue(items)', 1),
+    },
+  );
+  const text = async (data: object) =>
+    (await deck(await renderDeck(pptx, data))).map((s) => s.text);
+
+  const items = [1, 2, 3, 4];
+  expect(await text({ items, again: false, compact: false })).toEqual([
+    'Item 1Item 2',
+    'Item 3',
+    'Item 4',
+  ]);
+  expect(await text({ items, again: true, compact: false })).toEqual([
+    'Item 1Item 2',
+    'Item 1',
+    'Item 2',
+    'Item 3',
+    'Item 4',
+  ]);
+  // slide 2 hidden: slide 3 goes on after slide 1
+  expect(await text({ items, again: false, compact: true })).toEqual([
+    'Item 1Item 2',
+    'Item 3',
+    'Item 4',
+  ]);
+  // everything on slide 1: slide 3 has nothing left
+  expect(await text({ items: [1], again: false, compact: true })).toEqual([
+    'Item 1',
+  ]);
+});

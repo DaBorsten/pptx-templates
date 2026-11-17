@@ -4,7 +4,12 @@ import type {
   RenderTemplateOptions,
   TemplateData,
 } from '../template-logic/types';
-import { FlowCache } from '../text-flow';
+import {
+  FlowCache,
+  FlowPlan,
+  flowPlanEntries,
+  FlowShown,
+} from '../text-flow';
 import {
   evaluateHideConditions,
   hideSlideConditions,
@@ -27,7 +32,13 @@ const toBuffer = (pptx: Buffer | Uint8Array | ArrayBuffer): Buffer =>
       ? Buffer.from(pptx)
       : Buffer.from(pptx.buffer, pptx.byteOffset, pptx.byteLength);
 
-type DeckSlide = { number: number; page?: number; flowCache?: FlowCache };
+type DeckSlide = {
+  number: number;
+  page?: number;
+  flowCache?: FlowCache;
+  /** What the slides before it show, for flowContinue(). */
+  flowShown?: FlowShown;
+};
 
 const loadContent = async (
   pptx: string | Buffer | Uint8Array | ArrayBuffer,
@@ -70,11 +81,12 @@ const buildDeck = async (
     );
   }
 
-  for (const { number, page, flowCache } of slides) {
+  for (const { number, page, flowCache, flowShown } of slides) {
     pres.addSlide('deck', number, (slide) => {
       const render = modify.renderTemplate(data, {
         ...renderOptions,
         ...(flowCache ? { flowCache } : {}),
+        ...(flowShown ? { flowShown } : {}),
         ...(page === undefined ? {} : { flowPage: page }),
       });
       slide.modify(async (document, context) => {
@@ -164,6 +176,9 @@ export const countFlowPages = async (
  * A slide with `{{HIDE-SLIDE condition}}` in its speaker notes is left out
  * when the condition is true; the tag itself is removed from the notes.
  *
+ * `flowContinue(list)` in a template is `list` without the entries that
+ * `flow()` shows on the slides before it, hidden copies not counted.
+ *
  * @param pptx Path to a .pptx file or its contents.
  */
 export const renderDeck = async (
@@ -178,9 +193,13 @@ export const renderDeck = async (
     const result: DeckSlide[] = [];
     // The copies of a slide share the measurement of its lists
     const caches = new Map<number, FlowCache>();
+    // flowContinue(): the entries of the flow() lists on the slides so far
+    const shown = new FlowShown();
     for (const number of slides ?? available) {
       if (!caches.has(number)) caches.set(number, new FlowCache());
       const flowCache = caches.get(number);
+      const flowShown = shown.clone();
+      const slideOptions = { ...renderOptions, flowShown };
       const exists = available.includes(number);
       // {{HIDE-SLIDE …}} in the notes, evaluated per copy of the slide
       const hide = exists
@@ -191,7 +210,7 @@ export const renderDeck = async (
           return await evaluateHideConditions(
             hide,
             data,
-            renderOptions,
+            slideOptions,
             renderOptions.flowPage ?? page,
             pages,
           );
@@ -204,11 +223,13 @@ export const renderDeck = async (
       if (hide.length && !perPage && (await hidden(0, 1))) continue;
 
       // a slide whose flow() lists need more room repeats
+      const plans: FlowPlan[] = [];
       const pages =
         exists && renderOptions.flowPage === undefined
           ? await countFlowPages(content, number, data, {
-              ...renderOptions,
+              ...slideOptions,
               flowCache,
+              onFlowPlan: (plan) => plans.push(plan),
             })
           : 1;
       for (let page = 0; page < pages; page++) {
@@ -217,7 +238,9 @@ export const renderDeck = async (
           number,
           page: pages > 1 ? page : undefined,
           flowCache,
+          flowShown,
         });
+        plans.forEach((plan) => shown.add(flowPlanEntries(plan, page)));
       }
     }
     return result;

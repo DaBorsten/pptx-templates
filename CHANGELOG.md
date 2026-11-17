@@ -17,6 +17,10 @@ semver, with the pre-1.0 convention that **breaking changes bump the minor**.
   removed with a warning and does nothing.
 - `isSlideHidden(pptx, slide, data, options)` tells `addSlide` users
   whether to skip a slide.
+- `flowContinue(list)`: the entries of `list` that `flow()` does not show on
+  the slides before it in `renderDeck`, hidden copies not counted. A slide
+  with `flow(flowContinue(projects), 1)` goes on where an earlier slide's
+  `flow(projects)` stopped.
 - The linter checks `{{HIDE-SLIDE …}}` in the speaker notes like any
   expression (syntax, unknown names) and reports it as
   `unsupported-location` anywhere else. `listTemplateCommands` lists it

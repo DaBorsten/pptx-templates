@@ -21,6 +21,7 @@ import type {
   RenderTemplateOptions,
   TemplateData,
 } from '../template-logic/types';
+import { FlowShown } from '../text-flow/flow';
 
 /** One `{{HIDE-SLIDE …}}` of a slide's notes. */
 export type HideSlideCondition = {
@@ -147,6 +148,8 @@ export const evaluateHideConditions = async (
       // The lists are not distributed here: flow() is the list itself
       flow: (list: unknown) => list,
       flowRest: (): unknown[] => [],
+      flowContinue: (list: unknown) =>
+        (options.flowShown ?? new FlowShown()).continue(list),
     },
   ]);
   const evaluation = {

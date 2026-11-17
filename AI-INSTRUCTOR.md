@@ -1229,6 +1229,36 @@ pres.addSlide('Columns.pptx', 1, (slide) => {
 });
 ```
 
+### Continuing on another slide
+
+`flowContinue(list)` is `list` without the entries that `flow()` shows on
+the slides before it in the output of `renderDeck`. A first slide can show
+as many projects as fit into one text box, and a second slide the rest, one
+per column:
+
+```text
+{{FOR p IN flow(projects)}}
+{{p.name}}
+{{END-FOR}}
+```
+
+```text
+{{FOR p IN flow(flowContinue(projects), 1)}}
+{{p.name}}
+{{END-FOR}}
+```
+
+Without more, the first slide would repeat until every project is on it.
+`{{HIDE-SLIDE flowPage > 1}}` in its speaker notes keeps only its first
+copy (see [Hide Slides](https://daborsten.github.io/pptx-templates/hide-slide.md)); entries of hidden copies count
+as not shown. The second slide repeats as usual while projects are left.
+
+- Entries are compared with `===`: the objects of your data, or equal
+  strings and numbers as often as they were shown.
+- `{{HIDE-SLIDE !flowContinue(projects).length}}` leaves the second slide
+  out when the first one shows every project.
+- Outside `renderDeck`, `flowContinue(list)` is the whole list.
+
 ### Rules for the template
 
 - `{{FOR … IN flow(…)}}` and `{{END-FOR}}` each need a paragraph of their own,
@@ -1255,7 +1285,7 @@ pres.addSlide('Columns.pptx', 1, (slide) => {
   matters.
 - Hyphenation, kerning and right-to-left or East Asian line breaking rules
   are not taken into account.
-- `flow`, `flowRest`, `flowPage` and `flowPages` are built in. The same name
+- `flow`, `flowRest`, `flowContinue`, `flowPage` and `flowPages` are built in. The same name
   in your data or in `additionalJsContext` takes precedence.
 - To count the slides, `renderDeck` and `countFlowPages` render the slide
   once more. Functions in your data are called again then.

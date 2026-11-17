@@ -19,7 +19,12 @@ import {
   tagSyntax,
 } from './commands';
 import { ImageTarget, loadImage, placeImages } from './images';
-import { flowArguments, SlideStyles, TextFlow } from '../text-flow';
+import {
+  flowArguments,
+  FlowShown,
+  SlideStyles,
+  TextFlow,
+} from '../text-flow';
 import { log } from '../../helper/logger';
 
 /** Access to the slide beyond its XML, resolved on first use. */
@@ -270,6 +275,9 @@ export class TemplateRenderer {
       {
         flow: (list: unknown) => this.flowEntries(list),
         flowRest: (list: unknown) => this.flowRest(list),
+        // the entries no earlier slide of the deck shows (renderDeck)
+        flowContinue: (list: unknown) =>
+          (options.flowShown ?? new FlowShown()).continue(list),
         // 1-based number of this slide among the slides a list needs
         flowPage: (options.flowPage ?? 0) + 1,
         get flowPages() {
@@ -402,6 +410,7 @@ export class TemplateRenderer {
         flowOverflow: this.options.flowOverflow,
         flowPage: this.options.flowPage,
         onFlowPages: this.options.onFlowPages,
+        onFlowPlan: this.options.onFlowPlan,
         flowCache: this.options.flowCache,
       },
     );
