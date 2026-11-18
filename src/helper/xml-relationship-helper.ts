@@ -318,12 +318,15 @@ export class XmlRelationshipHelper {
     file: string,
     prefix: string,
   ): boolean {
-    if (relType === 'package') return true;
-
     // pptxgenjs uses absolute paths in "Target" attributes
     if (file.indexOf('/ppt/') === 0) {
       file = file.replace('/ppt/', '../');
     }
+
+    // A chart's workbook is a "package" relationship: matched by its path
+    // only. An embedded object on a slide (Excel, Word) is a "package" as
+    // well and must not match '../charts/chart' & co.
+    if (relType === 'package') return file.indexOf(prefix) === 0;
 
     return relType === subtype && file.indexOf(prefix) === 0;
   }

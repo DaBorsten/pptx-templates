@@ -6,6 +6,33 @@ semver, with the pre-1.0 convention that **breaking changes bump the minor**.
 
 ## [Unreleased]
 
+### Fixed
+
+- A slide with an embedded Office document (Excel worksheet, Word document:
+  a `package` relationship, as PowerPoint inserts them) can be copied. Its
+  relationship matched every prefix, so the slide was taken for a chart and
+  `addSlide`/`renderDeck` failed with `Could not find file
+  ppt/charts/chart0.xml`.
+- Embedded documents are copied with their slide. Before, only `oleObject`
+  relationships were copied; an embedded worksheet kept pointing at the
+  template's file, which `renderDeck` (cleanup) then deleted.
+- Copied OLE objects no longer overwrite each other. The copy was named
+  after the slide's relationship id (`oleObjectrId9-created.bin`), which
+  repeats from slide to slide: two slides with different objects ended up
+  with the same file. Copies are now named after the source with the next
+  free number (`oleObject2.bin`, `Microsoft_Excel_Worksheet1.xlsx`), keep
+  their extension (`.xlsm`, `.docx`, … were renamed to `.bin`) and the
+  content type of the template. Linked objects (`TargetMode="External"`)
+  are left as they are instead of failing.
+- A copied `chartEx` chart (waterfall, sunburst, …) no longer overwrites a
+  chart of the deck: the chart counter skipped `chartEx` parts, so the copy
+  reused `chartEx1.xml`/`style1.xml`/`colors1.xml` and `[Content_Types].xml`
+  listed them twice.
+- With `removeExistingSlides` and `cleanup` (as in `renderDeck`), the
+  speaker notes and rels of the removed template slides are deleted too.
+  The notes of a slide left out with `{{HIDE-SLIDE …}}` were still in the
+  output file.
+
 ## [0.3.6] - 2026-11-17
 
 ### Added

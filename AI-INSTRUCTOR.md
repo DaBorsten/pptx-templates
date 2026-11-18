@@ -1330,6 +1330,8 @@ the render (`strict`, `fixSmartQuotes`, other delimiters, `errorHandler`).
   them is true.
 - The tags are removed from the notes of the output; the rest of the notes
   stays. A paragraph that held nothing but the tag goes as well.
+- A hidden slide leaves nothing behind in the output file: neither its
+  notes nor its embedded objects.
 - When every slide is hidden, the output has no slides.
 
 ### Why the speaker notes
@@ -1352,6 +1354,9 @@ repeated by `renderDeck`. The condition is evaluated for each copy, with
 ```
 
 keeps the first three copies of the slide and leaves out the rest.
+Each copy has its own speaker notes and its own copy of the slide's
+embedded objects (OLE objects, embedded Excel or Word documents, charts
+with their workbooks).
 
 ### With addSlide
 

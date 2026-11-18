@@ -132,11 +132,30 @@ export class CountHelper implements ICounter {
     );
   }
 
+  /**
+   * The chart counter numbers chart<n>.xml, chartEx<n>.xml and their
+   * style<n>/colors<n> parts alike. chartEx parts (waterfall, sunburst, …)
+   * count as well, and so does the highest number taken in ppt/charts:
+   * otherwise a copied chart overwrites a chart of the deck.
+   */
   private static async countCharts(presentation: IArchive): Promise<number> {
-    return CountHelper.countContentTypeOverrides(
-      presentation,
-      'application/vnd.openxmlformats-officedocument.drawingml.chart+xml',
-    );
+    const overrides =
+      (await CountHelper.countContentTypeOverrides(
+        presentation,
+        'application/vnd.openxmlformats-officedocument.drawingml.chart+xml',
+      )) +
+      (await CountHelper.countContentTypeOverrides(
+        presentation,
+        'application/vnd.ms-office.chartex+xml',
+      ));
+    const files = await presentation.folder('ppt/charts');
+    const highest = files.reduce((max, file) => {
+      const match = /^(?:chart|chartEx|style|colors)(\d+)\.xml$/.exec(
+        file.relativePath,
+      );
+      return match ? Math.max(max, Number(match[1])) : max;
+    }, 0);
+    return Math.max(overrides, highest);
   }
 
   private static async countOleObjects(
