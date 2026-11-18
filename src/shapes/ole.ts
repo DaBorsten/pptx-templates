@@ -13,7 +13,9 @@ import { RootPresTemplate } from '../interfaces/root-pres-template';
 import path from 'path';
 
 export class OLEObject extends Shape implements IShapeAction {
-  private readonly oleObjectPath: string;
+  /** The copied embedding, e.g. ppt/embeddings/oleObject2.bin. */
+  private embeddingFile: string;
+  private embeddingContentType: string;
 
   constructor(
     shape: ImportedElement,
@@ -22,21 +24,65 @@ export class OLEObject extends Shape implements IShapeAction {
   ) {
     super(shape, targetType);
     this.sourceArchive = sourceArchive;
-    this.oleObjectPath = PptPaths.embedding(
-      `${this.sourceRid}${this.getFileExtension(shape.target?.file)}`,
-    );
     this.relRootTag = 'p:oleObj';
     this.relAttribute = 'r:id';
   }
 
+  /**
+   * The extension of an embedding, kept as it is: an embedded package
+   * (.xlsx, .xlsm, .docx, …) is opened by its extension and content type.
+   */
   private getFileExtension(file?: string): string {
-    if (!file) return '.bin';
-    const ext = path.extname(file).toLowerCase();
-    return ['.bin', '.xls', '.xlsx', '.doc', '.docx', '.ppt', '.pptx'].includes(
-      ext,
-    )
-      ? ext
-      : '.bin';
+    const ext = file ? path.extname(file).toLowerCase() : '';
+    return ext || '.bin';
+  }
+
+  /**
+   * A file name in ppt/embeddings that is not taken yet, after the source
+   * name: oleObject1.bin → oleObject2.bin. The name must not depend on the
+   * slide's rIds: those repeat from slide to slide, and two embeddings of
+   * different slides would overwrite each other.
+   */
+  private getFreeTargetFile(sourceFilePath: string): string {
+    const ext = this.getFileExtension(sourceFilePath);
+    const base =
+      path.basename(sourceFilePath, path.extname(sourceFilePath)).replace(
+        /\d+$/,
+        '',
+      ) || 'oleObject';
+    for (let n = 1; ; n++) {
+      const candidate = PptPaths.embedding(`${base}${n}${ext}`);
+      if (!this.targetArchive.fileExists(candidate)) return candidate;
+    }
+  }
+
+  /** The content type of the embedding in the source deck. */
+  private async getSourceContentType(sourceFilePath: string): Promise<string> {
+    const ext = this.getFileExtension(sourceFilePath);
+    const fallback = this.getContentType(ext);
+    if (!this.sourceArchive.fileExists('[Content_Types].xml')) return fallback;
+    const contentTypesXml = await XmlHelper.getXmlFromArchive(
+      this.sourceArchive,
+      '[Content_Types].xml',
+    );
+    const override = Array.from(
+      contentTypesXml.getElementsByTagName('Override'),
+    ).find(
+      (element) =>
+        element.getAttribute('PartName')?.toLowerCase() ===
+        PptPaths.partName(sourceFilePath).toLowerCase(),
+    );
+    const byDefault = Array.from(
+      contentTypesXml.getElementsByTagName('Default'),
+    ).find(
+      (element) =>
+        element.getAttribute('Extension')?.toLowerCase() === ext.slice(1),
+    );
+    return (
+      override?.getAttribute('ContentType') ||
+      byDefault?.getAttribute('ContentType') ||
+      fallback
+    );
   }
 
   /**
@@ -98,6 +144,9 @@ export class OLEObject extends Shape implements IShapeAction {
       this.targetSlideRelFile,
     );
 
+    this.embeddingFile = this.getFreeTargetFile(sourceFilePath);
+    this.embeddingContentType = await this.getSourceContentType(sourceFilePath);
+
     await this.copyOleObjectFile(sourceFilePath);
     await this.appendToContentTypes();
     await this.updateSlideRels();
@@ -105,15 +154,12 @@ export class OLEObject extends Shape implements IShapeAction {
   }
 
   private async copyOleObjectFile(sourceFilePath: string): Promise<void> {
-    const fileExtension = this.getFileExtension(sourceFilePath);
-    const targetFileName = PptPaths.embedding(`oleObject${this.createdRid}${fileExtension}`);
-
     try {
       await FileHelper.zipCopy(
         this.sourceArchive,
         sourceFilePath,
         this.targetArchive,
-        targetFileName,
+        this.embeddingFile,
       );
     } catch (error) {
       log.error('Error copying OLE object file:', error);
@@ -129,10 +175,7 @@ export class OLEObject extends Shape implements IShapeAction {
     );
 
     const types = contentTypesXml.getElementsByTagName('Types')[0];
-    const fileExtension = this.getFileExtension(this.oleObjectPath);
-    const partName = PptPaths.partName(
-      PptPaths.embedding(`oleObject${this.createdRid}${fileExtension}`),
-    );
+    const partName = PptPaths.partName(this.embeddingFile);
     const existingOverride = Array.from(
       types.getElementsByTagName('Override'),
     ).find((override) => override.getAttribute('PartName') === partName);
@@ -140,10 +183,7 @@ export class OLEObject extends Shape implements IShapeAction {
     if (!existingOverride) {
       const newOverride = contentTypesXml.createElement('Override');
       newOverride.setAttribute('PartName', partName);
-      newOverride.setAttribute(
-        'ContentType',
-        this.getContentType(fileExtension),
-      );
+      newOverride.setAttribute('ContentType', this.embeddingContentType);
       types.appendChild(newOverride);
 
       await XmlHelper.writeXmlToArchive(
@@ -162,8 +202,7 @@ export class OLEObject extends Shape implements IShapeAction {
     );
     const relationships = relXml.getElementsByTagName('Relationship');
 
-    const fileExtension = this.getFileExtension(this.oleObjectPath);
-    const newTarget = `../embeddings/oleObject${this.createdRid}${fileExtension}`;
+    const newTarget = `../embeddings/${path.basename(this.embeddingFile)}`;
 
     // Update or create the relationship
     let relationshipUpdated = false;
@@ -245,9 +284,7 @@ export class OLEObject extends Shape implements IShapeAction {
   }
 
   private async removeOleObjectFile(): Promise<void> {
-    const fileExtension = this.getFileExtension(this.oleObjectPath);
-    const fileName = PptPaths.embedding(`oleObject${this.createdRid}${fileExtension}`);
-    await this.targetArchive.remove(fileName);
+    await this.targetArchive.remove(this.embeddingFile);
   }
 
   private async removeFromContentTypes(): Promise<void> {
@@ -258,10 +295,7 @@ export class OLEObject extends Shape implements IShapeAction {
     );
 
     const types = contentTypesXml.getElementsByTagName('Types')[0];
-    const fileExtension = this.getFileExtension(this.oleObjectPath);
-    const partName = PptPaths.partName(
-      PptPaths.embedding(`oleObject${this.createdRid}${fileExtension}`),
-    );
+    const partName = PptPaths.partName(this.embeddingFile);
     const overrideToRemove = Array.from(
       types.getElementsByTagName('Override'),
     ).find((override) => override.getAttribute('PartName') === partName);
@@ -304,6 +338,10 @@ export class OLEObject extends Shape implements IShapeAction {
   ): Promise<Target[]> {
     const oleObjectType =
       'http://schemas.openxmlformats.org/officeDocument/2006/relationships/oleObject';
+    // An embedded Office document (Excel worksheet, Word document) is a
+    // "package" relationship, not an "oleObject" one
+    const packageType =
+      'http://schemas.openxmlformats.org/officeDocument/2006/relationships/package';
 
     return XmlRelationshipHelper.getRelationshipItems(
       archive,
@@ -311,7 +349,13 @@ export class OLEObject extends Shape implements IShapeAction {
       (element: XmlElement, rels: Target[]) => {
         const type = element.getAttribute('Type');
 
-        if (type === oleObjectType) {
+        // A linked object (TargetMode="External") has no file to copy; its
+        // relationship is copied with the slide's rels as it is
+        if (element.getAttribute('TargetMode') === 'External') return;
+        const isEmbeddedPackage =
+          type === packageType &&
+          /(^|\/)embeddings\//.test(element.getAttribute('Target'));
+        if (type === oleObjectType || isEmbeddedPackage) {
           rels.push({
             rId: element.getAttribute('Id'),
             type: element.getAttribute('Type'),

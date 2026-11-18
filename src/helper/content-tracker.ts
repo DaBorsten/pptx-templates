@@ -18,6 +18,12 @@ export class ContentTracker {
     'ppt/slideMasters': [],
     'ppt/slideLayouts': [],
     'ppt/slides': [],
+    // Copied with their slides (zipCopy tracks them). Tracked so that
+    // cleanup also drops the notes and rels of the root's removed slides:
+    // the notes of a slide left out stay out of the output.
+    'ppt/slides/_rels': [],
+    'ppt/notesSlides': [],
+    'ppt/notesSlides/_rels': [],
     'ppt/charts': [],
     'ppt/embeddings': [],
     'ppt/drawings': [],
