@@ -28,7 +28,9 @@ import {
  *     internally consistent mislink the dangling-id check cannot see;
  *  9. an [Content_Types].xml Override whose PartName is not in the package —
  *     a content type registered for a part that was never written. Harmless
- *     to PowerPoint, but OPC validators warn once per orphan.
+ *     to PowerPoint, but OPC validators warn once per orphan;
+ * 10. a PartName with more than one Override in [Content_Types].xml (e.g. a
+ *     new slide numbered like an existing slide part, which it overwrites).
  *
  * `knownIssues` are pre-existing library behaviors that PowerPoint tolerates.
  * They are reported for future cleanup work but do not fail tests:
@@ -233,7 +235,12 @@ export async function checkPptxInvariants(
     const overrides = new Set<string>();
     const overrideElements = contentTypes.getElementsByTagName('Override');
     for (let i = 0; i < overrideElements.length; i++) {
-      overrides.add(overrideElements[i].getAttribute('PartName'));
+      const partName = overrideElements[i].getAttribute('PartName');
+      // 10. a part registered twice: PowerPoint offers to repair the file
+      if (overrides.has(partName)) {
+        errors.push(`[Content_Types].xml: duplicate Override for ${partName}`);
+      }
+      overrides.add(partName);
     }
     for (const name of partNames) {
       if (name === '[Content_Types].xml') continue;

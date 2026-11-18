@@ -79,12 +79,24 @@ export class CountHelper implements ICounter {
     throw new Error(`No way to count ${this.name}.`);
   }
 
+  /**
+   * New slides are numbered after this count. The highest slide<n>.xml
+   * counts as well: a deck written by pptx-templates (removeExistingSlides +
+   * cleanup) starts at slide4.xml or higher, and a new slide numbered after
+   * the slide list would overwrite one of its slides.
+   */
   private static async countSlides(presentation: IArchive): Promise<number> {
     const presentationXml = await XmlHelper.getXmlFromArchive(
       presentation,
       'ppt/presentation.xml',
     );
-    return presentationXml.getElementsByTagName('p:sldId').length;
+    const listed = presentationXml.getElementsByTagName('p:sldId').length;
+    const files = await presentation.folder('ppt/slides');
+    const highest = files.reduce((max, file) => {
+      const match = /^slide(\d+)\.xml$/.exec(file.relativePath);
+      return match ? Math.max(max, Number(match[1])) : max;
+    }, 0);
+    return Math.max(listed, highest);
   }
 
   private static async countMasters(presentation: IArchive): Promise<number> {

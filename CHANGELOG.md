@@ -28,6 +28,12 @@ semver, with the pre-1.0 convention that **breaking changes bump the minor**.
   chart of the deck: the chart counter skipped `chartEx` parts, so the copy
   reused `chartEx1.xml`/`style1.xml`/`colors1.xml` and `[Content_Types].xml`
   listed them twice.
+- A deck written by pptx-templates can be loaded again as root and get new
+  slides (e.g. the output of `renderDeck`, processed further with
+  `addSlide`/`modifyElement`). Its slide parts start at `slide4.xml` or
+  higher; new slides were numbered after the slide count, overwrote its
+  slides and registered them twice in `[Content_Types].xml`, and PowerPoint
+  offered to repair the file.
 - With `removeExistingSlides` and `cleanup` (as in `renderDeck`), the
   speaker notes and rels of the removed template slides are deleted too.
   The notes of a slide left out with `{{HIDE-SLIDE …}}` were still in the
