@@ -1,3 +1,4 @@
+import { XMLSerializer } from '@xmldom/xmldom';
 import { XmlDocument, XmlElement } from '../../types/xml-types';
 import { XmlHelper } from '../../helper/xml-helper';
 import { XmlRelationshipHelper } from '../../helper/xml-relationship-helper';
@@ -19,6 +20,7 @@ import {
   tagSyntax,
 } from './commands';
 import { ImageTarget, loadImage, placeImages } from './images';
+import { cloneXml } from './clone';
 import { flowArguments, FlowShown, SlideStyles, TextFlow } from '../text-flow';
 import { log } from '../../helper/logger';
 
@@ -398,6 +400,7 @@ export class TemplateRenderer {
       boxes,
       {
         renderCopy: (body, entries) => this.renderCopy(body, entries),
+        measureKey: (body) => this.flowMeasureKey(body),
         styles: async () => (await this.context.styles?.()) ?? {},
       },
       {
@@ -519,7 +522,7 @@ export class TemplateRenderer {
     body: XmlElement,
     entries: unknown[],
   ): Promise<XmlElement[]> {
-    const copy = body.cloneNode(true) as XmlElement;
+    const copy = cloneXml(body, true) as XmlElement;
     const saved = {
       override: this.flowOverride,
       current: this.currentBody,
@@ -544,6 +547,43 @@ export class TemplateRenderer {
       this.errors.length = saved.errors;
       this.root.restore(saved.vars);
     }
+  }
+
+  /**
+   * flow(): boxes with the same key render and measure the same, so one
+   * measurement serves all of them: the shape as it is, without its
+   * position and its id and name. Undefined where a measuring render has
+   * effects beyond its result, which measuring each box repeats: an
+   * errorHandler is called per error, and HTML links add a relationship
+   * per render. Tags that do not parse are left to the full measurement.
+   */
+  private flowMeasureKey(body: XmlElement): string | undefined {
+    if (this.options.errorHandler) return undefined;
+    const text = XmlHelper.collectionToArray(body.getElementsByTagName('a:t'))
+      .map((t) => t.textContent)
+      .join('');
+    for (const match of text.matchAll(this.tagPattern)) {
+      try {
+        const resolved = resolveAlias(match[1], this.aliases, match[0]);
+        const command = parseCommand(
+          this.options.fixSmartQuotes ? fixSmartQuotes(resolved) : resolved,
+          match[0],
+        );
+        if (command.type === 'HTML') return undefined;
+      } catch {
+        return undefined;
+      }
+    }
+    const shape = cloneXml(body.parentNode as XmlElement, true);
+    const childOf = (parent: XmlElement | undefined, tagName: string) =>
+      parent && this.childElements(parent, tagName)[0];
+    const off = childOf(childOf(childOf(shape, 'p:spPr'), 'a:xfrm'), 'a:off');
+    off?.setAttribute('x', '0');
+    off?.setAttribute('y', '0');
+    const cNvPr = childOf(childOf(shape, 'p:nvSpPr'), 'p:cNvPr');
+    cNvPr?.removeAttribute('id');
+    cNvPr?.removeAttribute('name');
+    return new XMLSerializer().serializeToString(shape);
   }
 
   /** Shape text bodies and tables, in document order. */
@@ -992,7 +1032,7 @@ export class TemplateRenderer {
           paragraphs.push({ source: token.paragraph, nodes: [] });
           break;
         case 'node':
-          current().nodes.push(token.node.cloneNode(true) as XmlElement);
+          current().nodes.push(cloneXml(token.node, true) as XmlElement);
           break;
         case 'text':
           current().nodes.push(...this.createRuns(token.run, token.text));
@@ -1145,12 +1185,12 @@ export class TemplateRenderer {
   }
 
   private createParagraph(output: OutputParagraph): XmlElement {
-    const paragraph = output.source.cloneNode(false) as XmlElement;
+    const paragraph = cloneXml(output.source, false) as XmlElement;
     const pPr = this.childElements(output.source, 'a:pPr')[0];
     const endParaRPr = this.childElements(output.source, 'a:endParaRPr')[0];
-    if (pPr) paragraph.appendChild(pPr.cloneNode(true));
+    if (pPr) paragraph.appendChild(cloneXml(pPr, true));
     output.nodes.forEach((node) => paragraph.appendChild(node));
-    if (endParaRPr) paragraph.appendChild(endParaRPr.cloneNode(true));
+    if (endParaRPr) paragraph.appendChild(cloneXml(endParaRPr, true));
     return paragraph;
   }
 
@@ -1168,11 +1208,11 @@ export class TemplateRenderer {
     lines.forEach((line, index) => {
       if (index > 0) {
         const br = doc.createElement('a:br');
-        if (rPr) br.appendChild(rPr.cloneNode(true));
+        if (rPr) br.appendChild(cloneXml(rPr, true));
         nodes.push(br as unknown as XmlElement);
       }
       if (line === '') return;
-      const run = template.cloneNode(true) as XmlElement;
+      const run = cloneXml(template, true) as XmlElement;
       const t = run.getElementsByTagName('a:t')[0];
       while (t.firstChild) t.removeChild(t.firstChild);
       t.appendChild(doc.createTextNode(XmlHelper.sanitizeText(line)));
@@ -1212,14 +1252,14 @@ export class TemplateRenderer {
   ): XmlElement[] {
     const doc = body.ownerDocument;
     const host = doc.createElement('p:sp') as unknown as XmlElement;
-    const scratch = body.cloneNode(false) as XmlElement;
+    const scratch = cloneXml(body, false) as XmlElement;
     ['a:bodyPr', 'a:lstStyle'].forEach((name) =>
       this.childElements(body, name).forEach((child) =>
-        scratch.appendChild(child.cloneNode(true)),
+        scratch.appendChild(cloneXml(child, true)),
       ),
     );
-    const paragraph = source.cloneNode(false) as XmlElement;
-    paragraph.appendChild(run.cloneNode(true));
+    const paragraph = cloneXml(source, false) as XmlElement;
+    paragraph.appendChild(cloneXml(run, true));
     scratch.appendChild(paragraph);
     host.appendChild(scratch);
 
@@ -1357,7 +1397,7 @@ export class TemplateRenderer {
       ),
       this.root,
       async (token, scope) => {
-        const row = token.row.cloneNode(true) as XmlElement;
+        const row = cloneXml(token.row, true) as XmlElement;
         const cells = this.childElements(row, 'a:tc');
         for (let c = 0; c < cells.length; c++) {
           const bodyTokens = token.cells[c];

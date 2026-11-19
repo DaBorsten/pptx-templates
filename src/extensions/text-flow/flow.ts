@@ -12,6 +12,11 @@ export type FlowHost = {
    * `entries`, without side effects on the slide; returns its paragraphs.
    */
   renderCopy(body: XmlElement, entries: unknown[]): Promise<XmlElement[]>;
+  /**
+   * Boxes with the same key render and measure alike, so they share one
+   * measurement; undefined measures the box by itself.
+   */
+  measureKey?(body: XmlElement): string | undefined;
   /** Layout, master, theme and presentation defaults of the slide. */
   styles(): Promise<SlideStyles>;
 };
@@ -46,6 +51,9 @@ type Box = {
   /** false: `{ measure: false }`, entries are counted only. */
   measured: boolean;
 };
+
+/** What measuring a box yields, shared by boxes with the same measureKey. */
+type Measurement = Pick<Box, 'head' | 'tail' | 'entries'>;
 
 /**
  * Boxes that take the same entries: the flow boxes of one list inside one
@@ -485,11 +493,12 @@ export class TextFlow {
     const bodies = this.bodiesOf(key);
     const styles = await this.host.styles();
     const boxes: Box[] = [];
+    const measurements = new Map<string, Measurement>();
     for (const body of bodies) {
       boxes.push(
         unmeasured.has(body)
           ? this.unmeasuredBox(body, styles, limits)
-          : await this.measureBox(body, list, styles),
+          : await this.measureBox(body, list, styles, measurements),
       );
     }
 
@@ -613,6 +622,8 @@ export class TextFlow {
     body: XmlElement,
     list: unknown[],
     slide: SlideStyles,
+    /** Measurements of this list so far, by measureKey. */
+    measurements: Map<string, Measurement>,
   ): Promise<Box> {
     const name = shapeName(body);
     const styles = new ShapeStyles(
@@ -633,6 +644,10 @@ export class TextFlow {
         `flow(): "${name}" has ${unsupported}, which flow() cannot measure`,
       );
 
+    const key = this.host.measureKey?.(body);
+    const known = key === undefined ? undefined : measurements.get(key);
+    if (known) return { body, name, geometry, ...known, measured: true };
+
     const measure = (paragraphs: XmlElement[]) =>
       styles
         .paragraphs(paragraphs)
@@ -651,9 +666,9 @@ export class TextFlow {
     let split: number | undefined;
     for (const entry of list) {
       const rendered = await this.host.renderCopy(body, [entry]);
-      const renderedXml = rendered.map(xml);
       // the loop's output sits between a common head and a common tail
       if (split === undefined) {
+        const renderedXml = rendered.map(xml);
         for (let k = 0; k <= fixed.length; k++) {
           const headMatches = fixedXml
             .slice(0, k)
@@ -685,14 +700,12 @@ export class TextFlow {
       );
     }
 
-    return {
-      body,
-      name,
-      geometry,
+    const measurement: Measurement = {
       head: measure(head),
       tail: measure(tail),
       entries,
-      measured: true,
     };
+    if (key !== undefined) measurements.set(key, measurement);
+    return { body, name, geometry, ...measurement, measured: true };
   }
 }

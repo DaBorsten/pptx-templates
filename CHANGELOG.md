@@ -6,6 +6,16 @@ semver, with the pre-1.0 convention that **breaking changes bump the minor**.
 
 ## [Unreleased]
 
+### Changed
+
+- `flow()` measures several times faster, with the same result: 24 entries
+  in three columns take about 0.04 instead of 0.25 seconds, `renderDeck`
+  with 1,000 entries 1.5 instead of 12.8 seconds. Nodes of the template
+  are cloned without xmldom's slow `cloneNode`, boxes that are the same
+  apart from position and name share one measurement (not with `HTML` tags
+  or an `errorHandler`), and `countFlowPages` no longer packs a .pptx it
+  throws away, nor does `renderDeck` unzip the deck again for each slide.
+
 ## [0.3.7] - 2026-11-18
 
 ### Fixed
