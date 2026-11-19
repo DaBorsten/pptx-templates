@@ -40,13 +40,33 @@ const loadContent = async (
 ): Promise<Buffer> =>
   typeof pptx === 'string' ? fs.promises.readFile(pptx) : toBuffer(pptx);
 
-/** Renders `slides` of a deck into a new deck (renderDeck's engine). */
-const buildDeck = async (
+type SelectSlides = (available: number[]) => Promise<DeckSlide[]> | DeckSlide[];
+
+/**
+ * Renders `slides` of a deck into a new deck (renderDeck's engine). With
+ * `generate: false` the deck is rendered but not packed into a .pptx, for
+ * countFlowPages, which needs the render only.
+ */
+async function buildDeck(
   content: Buffer,
   data: TemplateData,
   renderOptions: RenderTemplateOptions,
-  select: (available: number[]) => Promise<DeckSlide[]> | DeckSlide[],
-): Promise<Buffer> => {
+  select: SelectSlides,
+): Promise<Buffer>;
+async function buildDeck(
+  content: Buffer,
+  data: TemplateData,
+  renderOptions: RenderTemplateOptions,
+  select: SelectSlides,
+  generate: false,
+): Promise<undefined>;
+async function buildDeck(
+  content: Buffer,
+  data: TemplateData,
+  renderOptions: RenderTemplateOptions,
+  select: SelectSlides,
+  generate = true,
+): Promise<Buffer | undefined> {
   // Loaded here, through the package entry: upstream helpers import
   // src/index.ts, so loading automizer.ts or the template logic first (as
   // the CLI does) breaks on the import cycle
@@ -98,7 +118,9 @@ const buildDeck = async (
 
   try {
     const zip = await pres.getJSZip();
-    // HIDE-SLIDE has been applied (or ignored by countFlowPages)
+    // countFlowPages needs the render only, not the deck it produced
+    if (!generate) return undefined;
+    // HIDE-SLIDE has been applied
     await stripHideSlideTagsInDeck(zip, renderOptions);
     return await zip.generateAsync({
       type: 'nodebuffer',
@@ -111,11 +133,10 @@ const buildDeck = async (
     }
     throw error;
   }
-};
+}
 
 /** Whether a slide of the deck calls flow() (cheap text check). */
-const usesFlow = async (content: Buffer, number: number): Promise<boolean> => {
-  const zip = await JSZip.loadAsync(content);
+const usesFlow = async (zip: JSZip, number: number): Promise<boolean> => {
   const xml = await zip.file(`ppt/slides/slide${number}.xml`)?.async('string');
   if (!xml) return false;
   // Runs joined: a tag can be split across several a:t
@@ -140,7 +161,24 @@ export const countFlowPages = async (
   options: RenderTemplateOptions = {},
 ): Promise<number> => {
   const content = await loadContent(pptx);
-  if (!(await usesFlow(content, slide))) return 1;
+  return flowPagesOf(
+    content,
+    await JSZip.loadAsync(content),
+    slide,
+    data,
+    options,
+  );
+};
+
+/** countFlowPages with the deck loaded already (`zip` holds `content`). */
+const flowPagesOf = async (
+  content: Buffer,
+  zip: JSZip,
+  slide: number,
+  data: TemplateData,
+  options: RenderTemplateOptions,
+): Promise<number> => {
+  if (!(await usesFlow(zip, slide))) return 1;
   let pages = 1;
   await buildDeck(
     content,
@@ -153,6 +191,7 @@ export const countFlowPages = async (
       onFlowPages: (count) => (pages = Math.max(pages, count)),
     },
     () => [{ number: slide }],
+    false,
   );
   return pages;
 };
@@ -221,7 +260,7 @@ export const renderDeck = async (
       // with a fixed flowPage: flowContinue() needs what the slide shows
       const plans: { plan: FlowPlan; list: unknown }[] = [];
       const counted = exists
-        ? await countFlowPages(content, number, data, {
+        ? await flowPagesOf(content, zip, number, data, {
             ...slideOptions,
             flowCache,
             onFlowPlan: (plan, list) => plans.push({ plan, list }),

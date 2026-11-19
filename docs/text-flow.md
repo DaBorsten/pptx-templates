@@ -112,8 +112,15 @@ longer than the line by characters, and a line height of 1.2 × the font size
 (× the line spacing). Text around the loop, such as a heading above it,
 counts as well. The copies are thrown away; `EXEC` assignments of these trial
 renders are undone, so a counter in the loop counts every entry once.
+Boxes that are the same apart from their position and name, such as three
+equal columns, share one measurement. Each box is measured by itself when
+the loop contains an `HTML` tag or an `errorHandler` is set, since those
+trial renders have effects beyond their text.
+Functions in the data run during these trial renders as well, how often
+depends on the boxes and is not fixed, so they should not count or change
+anything outside the template: a counter belongs in `EXEC`.
 
-Measuring a slide with 24 entries in three boxes takes about 0.2 seconds.
+Measuring a slide with 24 entries in three boxes takes about 0.04 seconds.
 
 ## Fonts
 
