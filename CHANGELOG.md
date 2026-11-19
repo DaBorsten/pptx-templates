@@ -8,16 +8,27 @@ semver, with the pre-1.0 convention that **breaking changes bump the minor**.
 
 ### Changed
 
-- `flow()` measures several times faster, with the same result: 24 entries
-  in three columns take about 0.04 instead of 0.25 seconds, `renderDeck`
-  with 1,000 entries 1.5 instead of 12.8 seconds. Nodes of the template
-  are cloned without xmldom's slow `cloneNode`, boxes that are the same
-  apart from position and name share one measurement (not with `HTML` tags
-  or an `errorHandler`), and `countFlowPages` no longer packs a .pptx it
-  throws away, nor does `renderDeck` unzip the deck again for each slide.
+- `flow()` measures two to four times faster, with the same result:
+  `renderDeck` with 24 entries in three columns takes about 0.07 instead
+  of 0.15 seconds, with 1,000 entries about 0.8 instead of 3.5 seconds.
+  Nodes of the template are cloned without xmldom's slow `cloneNode`,
+  boxes that are the same apart from position and name share one
+  measurement (not with `HTML` tags or an `errorHandler`), and
+  `countFlowPages` no longer packs a .pptx it throws away, nor does
+  `renderDeck` unzip the deck again for each slide.
   Functions in the data are called fewer times while measuring; one that
   counts in a variable outside the template sees a different number.
   Counters in `EXEC` are not affected.
+
+### Fixed
+
+- `cleanup` (with `removeExistingSlides`, as in `renderDeck`) keeps the
+  embeddings and charts of slide masters and layouts. It deleted every
+  file in `ppt/embeddings` and `ppt/charts` that was not copied with a
+  slide, so OLE objects on a master or layout (e.g. think-cell, an
+  embedded logo) and charts there, with their workbooks, pointed at
+  missing parts and PowerPoint offered to repair the file. The 0.3.7 fix
+  only covered embeddings of slides.
 
 ## [0.3.7] - 2026-11-18
 
