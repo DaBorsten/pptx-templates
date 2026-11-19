@@ -118,9 +118,10 @@ async function buildDeck(
 
   try {
     const zip = await pres.getJSZip();
-    // HIDE-SLIDE has been applied (or ignored by countFlowPages)
-    await stripHideSlideTagsInDeck(zip, renderOptions);
+    // countFlowPages needs the render only, not the deck it produced
     if (!generate) return undefined;
+    // HIDE-SLIDE has been applied
+    await stripHideSlideTagsInDeck(zip, renderOptions);
     return await zip.generateAsync({
       type: 'nodebuffer',
       compression: 'DEFLATE',

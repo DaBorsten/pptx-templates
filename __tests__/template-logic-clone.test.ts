@@ -112,7 +112,8 @@ test('cloneXml clones the parts of templates like cloneNode', async () => {
     }
   }
   expect(compared).toBeGreaterThan(500);
-});
+  // ~3 s alone; the full suite runs it in parallel with everything else
+}, 30_000);
 
 test('cloneXml falls back to cloneNode for other nodes', () => {
   const doc = new DOMParser().parseFromString(

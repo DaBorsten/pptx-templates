@@ -15,6 +15,9 @@ semver, with the pre-1.0 convention that **breaking changes bump the minor**.
   apart from position and name share one measurement (not with `HTML` tags
   or an `errorHandler`), and `countFlowPages` no longer packs a .pptx it
   throws away, nor does `renderDeck` unzip the deck again for each slide.
+  Functions in the data are called fewer times while measuring; one that
+  counts in a variable outside the template sees a different number.
+  Counters in `EXEC` are not affected.
 
 ## [0.3.7] - 2026-11-18
 

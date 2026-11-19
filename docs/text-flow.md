@@ -116,6 +116,9 @@ Boxes that are the same apart from their position and name, such as three
 equal columns, share one measurement. Each box is measured by itself when
 the loop contains an `HTML` tag or an `errorHandler` is set, since those
 trial renders have effects beyond their text.
+Functions in the data run during these trial renders as well, how often
+depends on the boxes and is not fixed, so they should not count or change
+anything outside the template: a counter belongs in `EXEC`.
 
 Measuring a slide with 24 entries in three boxes takes about 0.04 seconds.
 
