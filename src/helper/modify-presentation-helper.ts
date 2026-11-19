@@ -4,6 +4,7 @@ import { PptPaths } from './ppt-paths';
 import { FileHelper } from './file-helper';
 import IArchive from '../interfaces/iarchive';
 import { XmlDocument, XmlElement } from '../types/xml-types';
+import { embeddingsOfMastersAndLayouts } from '../extensions/master-embeddings';
 
 export default class ModifyPresentationHelper {
   /**
@@ -142,6 +143,10 @@ export default class ModifyPresentationHelper {
       'ppt/slideLayouts/_rels',
       'ppt/drawings',
     ];
+    // Masters and layouts stay, so their embeddings stay too.
+    tracker.files['ppt/embeddings'].push(
+      ...(await embeddingsOfMastersAndLayouts(archive)),
+    );
     for (const dir in tracker.files) {
       if (skipDirs.includes(dir)) {
         continue;
