@@ -9,11 +9,12 @@ semver, with the pre-1.0 convention that **breaking changes bump the minor**.
 ### Fixed
 
 - `cleanup` (with `removeExistingSlides`, as in `renderDeck`) keeps the
-  embeddings of slide masters and layouts. It deleted every file in
-  `ppt/embeddings` that was not copied with a slide, so OLE objects on a
-  master or layout (e.g. think-cell, an embedded logo) pointed at missing
-  parts and PowerPoint offered to repair the file. The 0.3.7 fix only
-  covered embeddings of slides.
+  embeddings and charts of slide masters and layouts. It deleted every
+  file in `ppt/embeddings` and `ppt/charts` that was not copied with a
+  slide, so OLE objects on a master or layout (e.g. think-cell, an
+  embedded logo) and charts there, with their workbooks, pointed at
+  missing parts and PowerPoint offered to repair the file. The 0.3.7 fix
+  only covered embeddings of slides.
 
 ## [0.3.7] - 2026-11-18
 
