@@ -201,19 +201,26 @@ The object form takes `alt`, `shape`, `cornerRadius`, `shapeAdjustments`
 and `border` as above. `width`, `height` and `rotation` are an error here,
 since the shape decides them; `lintTemplate` reports them as well.
 
+An alt text counts as a template only when it holds **nothing but tags,
+with an `IMAGE` among them**. Any other alt text stays as it is, so a
+description like `Preis {{ in Euro`, `Foto: {{IMAGE foto}}` or `{{name}}`
+is not rendered; `lintTemplate` warns about the last two, since their tag
+most likely was meant to work. The tags use the configured delimiters
+(`openingTag`/`closingTag` or `cmdDelimiter`, see
+[Options](#options)), like the text.
+
 Only the alt texts of the template are rendered. An `alt` from the data
 (`{{IMAGE ({ data: foto, alt: caption })}}`) is written as it is, also
-when it contains `{{`.
+when it contains tags.
 
 #### Conditions and loops in the alt text
 
-An alt text that contains `{{` counts as a template: it holds only tags,
-no other text, or rendering reports an error (an alt text like
-`Preis {{ in Euro` too). With an `errorHandler`, the alt text is removed
-and the shape stays as it is. Besides `IMAGE`, these work
-there: `IF`/`ELSE-IF`/`ELSE`/`END-IF`, `FOR`/`END-FOR` and `EXEC`. One
-shape takes one picture: if the alt text yields more than one, that is an
-error. If it yields none, the backup stays.
+Besides `IMAGE`, these work in the alt text:
+`IF`/`ELSE-IF`/`ELSE`/`END-IF`, `FOR`/`END-FOR` and `EXEC`. Any other
+tag, or a block that is not closed, is an error. With an `errorHandler`,
+the alt text is removed and the shape stays as it is. One shape takes one
+picture: if the alt text yields more than one, that is an error. If it
+yields none, the backup stays.
 
 ```text
 {{IF person.foto}}{{IMAGE person.foto}}{{ELSE}}{{IMAGE 'avatar.png'}}{{END-IF}}

@@ -111,9 +111,10 @@ type Rendered = {
 const render = async (
   shape: string,
   data: Record<string, unknown>,
+  options?: Parameters<typeof renderDeck>[2],
 ): Promise<Rendered> => {
   const zip = await JSZip.loadAsync(
-    await renderDeck(await deckWith(shape), data),
+    await renderDeck(await deckWith(shape), data, options),
   );
   const slidePath = Object.keys(zip.files).find((f) =>
     /^ppt\/slides\/slide\d+\.xml$/.test(f),
@@ -254,12 +255,48 @@ test('a shape that is no placeholder gets the picture as its fill', async () => 
   expect(first(sp, 'a:t').textContent).toBe('Name');
 });
 
-test('rejects other text or size options in the alt text', async () => {
+test('an alt text that is not only tags with an IMAGE stays as it is', async () => {
+  for (const descr of [
+    'Preis {{ in Euro',
+    'Foto: {{IMAGE foto}}',
+    '{{name}}',
+    '{{IF a}}{{END-IF}}',
+  ]) {
+    const { slide } = await render(backupPicture(descr), {
+      foto: png,
+      name: 'x',
+      a: true,
+    });
+    const pic = first(slide, 'p:pic');
+    expect(first(pic, 'p:cNvPr').getAttribute('descr')).toBe(descr);
+    expect(first(pic, 'a:blip').getAttribute('r:embed')).toBe('rIdBackup');
+  }
+});
+
+test('IMAGE in the alt text uses the configured delimiters', async () => {
+  const options = { cmdDelimiter: ['[[', ']]'] as [string, string] };
+  const filled = await render(
+    backupPicture('[[IMAGE foto]]'),
+    { foto: png },
+    options,
+  );
+  const pic = first(filled.slide, 'p:pic');
+  expect(first(pic, 'a:blip').getAttribute('r:embed')).not.toBe('rIdBackup');
+  expect(first(pic, 'p:cNvPr').hasAttribute('descr')).toBe(false);
+  // {{…}} is plain text with other delimiters
+  const kept = await render(
+    backupPicture('{{IMAGE foto}}'),
+    { foto: png },
+    options,
+  );
+  expect(
+    first(first(kept.slide, 'p:pic'), 'p:cNvPr').getAttribute('descr'),
+  ).toBe('{{IMAGE foto}}');
+});
+
+test('rejects other tags or size options in the alt text', async () => {
   await expect(
-    render(backupPicture('Foto: {{IMAGE foto}}'), { foto: png }),
-  ).rejects.toThrow(/holds only tags/);
-  await expect(
-    render(backupPicture('{{name}}'), { name: 'x' }),
+    render(backupPicture('{{IMAGE foto}}{{name}}'), { foto: png, name: 'x' }),
   ).rejects.toThrow(/only IMAGE, IF, ELSE-IF, ELSE, FOR and EXEC/);
   await expect(
     render(backupPicture('{{IMAGE ({ data: foto, width: 3 })}}'), {
@@ -269,7 +306,7 @@ test('rejects other text or size options in the alt text', async () => {
 });
 
 test('an alt text that does not parse leaves no tag in the output', async () => {
-  for (const descr of ['Foto: {{IMAGE foto}}', '{{name}}', '{{IF a}}']) {
+  for (const descr of ['{{IMAGE foto}}{{name}}', '{{IF a}}{{IMAGE foto}}']) {
     const errors: string[] = [];
     const zip = await JSZip.loadAsync(
       await renderDeck(
@@ -593,15 +630,27 @@ test('lint accepts IMAGE in the alt text, also in IF and FOR, nothing else', asy
   ]);
   expect(table.message).toMatch(/not on <p:graphicFrame>/);
 
-  const [other] = await lint([lintPicture('{{name}}')]);
+  const [other] = await lint([lintPicture('{{IMAGE foto}}{{name}}')]);
   expect(other).toMatchObject({
     severity: 'error',
     rule: 'unsupported-location',
     shape: 'Bildplatzhalter 1',
     tag: '{{name}}',
   });
-  const [extra] = await lint([lintPicture('Foto {{IMAGE foto}}')]);
-  expect(extra.message).toMatch(/holds only tags/);
+
+  // Not a template: stays as it is, a warning for the tag in it
+  for (const descr of ['Foto {{IMAGE foto}}', '{{name}}']) {
+    const issues = await lint([lintPicture(descr)]);
+    expect(issues).toEqual([
+      expect.objectContaining({
+        severity: 'warning',
+        rule: 'unsupported-location',
+        shape: 'Bildplatzhalter 1',
+        message: expect.stringMatching(/stays as it is/),
+      }),
+    ]);
+  }
+  expect(await lint([lintPicture('Preis {{ in Euro')])).toEqual([]);
 });
 
 test('lint rejects size and rotation for IMAGE in the alt text', async () => {

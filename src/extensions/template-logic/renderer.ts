@@ -13,6 +13,7 @@ import {
 } from './expression';
 import {
   fixSmartQuotes,
+  isAltTextTemplate,
   isTableMarker,
   ParsedCommand,
   parseCommand,
@@ -1191,13 +1192,25 @@ export class TemplateRenderer {
    * The picture it yields fills the shape (fillWithImage). Rendered after
    * the text, so EXEC variables apply; in a flow() card, flow(list) gives
    * the entries of that card. No picture (no IMAGE reached, or null,
-   * undefined, '') keeps the picture that is there (a backup).
+   * undefined, '') keeps the picture that is there (a backup). Only alt
+   * texts of tags with an IMAGE among them count (isAltTextTemplate).
    */
   private altTextHolders(element: XmlDocument | XmlElement): XmlElement[] {
+    const commandType = (inner: string, tag: string) => {
+      try {
+        return parseCommand(resolveAlias(inner, this.aliases, tag), tag).type;
+      } catch {
+        return undefined;
+      }
+    };
     return XmlHelper.collectionToArray(
       element.getElementsByTagName('p:cNvPr'),
     ).filter((cNvPr) =>
-      (cNvPr.getAttribute('descr') ?? '').includes(this.opening),
+      isAltTextTemplate(
+        cNvPr.getAttribute('descr') ?? '',
+        this.tagPattern,
+        commandType,
+      ),
     );
   }
 
@@ -1206,19 +1219,13 @@ export class TemplateRenderer {
       const descr = cNvPr.getAttribute('descr');
       const shape = cNvPr.parentNode?.parentNode as XmlElement;
       const matches = [...descr.matchAll(this.tagPattern)];
-      const first = matches[0]?.[0] ?? descr;
+      const first = matches[0][0];
       type AltTag = { tag: string; directive: Directive };
       let blocks: Block<AltTag>[];
       // The tag never reaches the output, also not after an error
       // (errorHandler, continueOnError)
       cNvPr.removeAttribute('descr');
       try {
-        if (!matches.length || descr.replace(this.tagPattern, '').trim()) {
-          throw new Error(
-            'alt text with a tag holds only tags: {{IMAGE …}}, ' +
-              'optionally in IF or FOR blocks and with EXEC, and no other text',
-          );
-        }
         const tags = matches.map((match) => {
           const directive = this.parseDirective(match[1], match[0]);
           if (!ALT_TEXT_TYPES.includes(directive.type)) {

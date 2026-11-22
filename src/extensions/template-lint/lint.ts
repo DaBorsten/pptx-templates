@@ -4,6 +4,7 @@ import { DOMParser } from '@xmldom/xmldom';
 import { XmlDocument, XmlElement } from '../../types/xml-types';
 import {
   fixSmartQuotes,
+  isAltTextTemplate,
   isTableMarker,
   parseCommand,
   resolveAlias,
@@ -347,23 +348,66 @@ class TemplateLinter {
   }
 
   /**
-   * Alt text with a tag: tags only, on a picture or shape (the renderer
-   * fills it with the picture of its IMAGE).
+   * Splits off the alt texts the renderer leaves as they are (not
+   * isAltTextTemplate): one with a tag in it gets a warning, as the tag
+   * most likely was meant to work.
    */
+  private altTextTemplates(
+    all: Container[],
+    report: (issue: IssueInput) => void,
+  ): Container[] {
+    // ALIAS definitions in the text, which the renderer knows by then
+    const aliases = new Map<string, string>();
+    all
+      .filter((container) => container.kind !== 'alt')
+      .flatMap((container) => container.segments)
+      .flatMap((segment) => this.tagsIn(segment.text))
+      .forEach(({ raw, inner }) => {
+        try {
+          const command = this.parse(inner, aliases, raw);
+          if (command.type === 'ALIAS') {
+            aliases.set(command.name, command.code);
+          }
+        } catch {
+          // reported at the tag
+        }
+      });
+    const commandType = (inner: string, raw: string) => {
+      try {
+        return this.parse(inner, aliases, raw).type;
+      } catch {
+        return undefined;
+      }
+    };
+    const { opening, closing, pattern } = this.syntax;
+    return all.filter((container) => {
+      if (container.kind !== 'alt') return true;
+      const { text, paragraph } = container.segments[0];
+      if (isAltTextTemplate(text, pattern, commandType)) return true;
+      const [first] = this.tagsIn(text);
+      if (first) {
+        report({
+          severity: 'warning',
+          rule: 'unsupported-location',
+          shape: shapeName(shapeOf(paragraph)),
+          tag: first.raw,
+          message:
+            'This alt text stays as it is: tags in alt text work only when ' +
+            'it holds nothing but tags, with an IMAGE among them',
+          hint:
+            `Remove the other text (a description for screen readers goes into ` +
+            `${opening}IMAGE ({ data: …, alt: "…" })${closing}), or remove the tag.`,
+        });
+      }
+      return false;
+    });
+  }
+
+  /** Alt text that is a template: on a picture or shape. */
   private checkAltText(
     segment: Segment,
     report: (issue: Omit<IssueInput, 'shape'>) => void,
   ): void {
-    if (!this.tagsIn(segment.text).length) return;
-    if (segment.text.replace(this.syntax.pattern, '').trim() !== '') {
-      report({
-        severity: 'error',
-        rule: 'unsupported-location',
-        message:
-          'Alt text with a tag holds only tags ({{IMAGE …}}, IF, FOR, EXEC), no other text',
-        hint: 'Write a description for screen readers with {{IMAGE ({ data: …, alt: "…" })}}.',
-      });
-    }
     const holder = segment.paragraph.parentNode?.parentNode as XmlElement;
     if (holder && !['p:sp', 'p:pic'].includes(holder.tagName)) {
       report({
@@ -377,13 +421,7 @@ class TemplateLinter {
 
   lintSlide(part: string, slide: number, doc: XmlDocument): void {
     const report = (issue: IssueInput) => this.report(part, slide, issue);
-    // Like the renderer, an alt text counts as a template only with an
-    // opening delimiter in it
-    const containers = containersOf(doc).filter(
-      (container) =>
-        container.kind !== 'alt' ||
-        container.segments[0].text.includes(this.syntax.opening),
-    );
+    const containers = this.altTextTemplates(containersOf(doc), report);
     const allTags = containers.flatMap((c) =>
       c.segments.flatMap((s) => this.tagsIn(s.text)),
     );

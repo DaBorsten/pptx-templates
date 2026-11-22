@@ -6,7 +6,7 @@ semver, with the pre-1.0 convention that **breaking changes bump the minor**.
 
 ## [Unreleased]
 
-## [0.4.0] - 2026-11-22
+## [0.3.9] - 2026-11-22
 
 ### Added
 
@@ -20,13 +20,11 @@ semver, with the pre-1.0 convention that **breaking changes bump the minor**.
   `flow()` card, `flow(list)` there gives the entry of the card, so every
   card shows its own picture. `listTemplateCommands` and `lintTemplate` see
   these tags too.
-
-### Changed
-
-- An alt text in the template that contains `{{` is now rendered as a
-  template. One with other text in it (`Preis {{ in Euro`) is an error
-  instead of being left as it is. An `alt` from the data is never
-  rendered.
+- Only an alt text that holds nothing but tags, with an `IMAGE` among
+  them, is rendered, with the configured delimiters. Every other alt text
+  stays as it is, as before (`Preis {{ in Euro`, `Foto: {{IMAGE foto}}`);
+  `lintTemplate` warns when one of them contains a tag. An `alt` from the
+  data is never rendered.
 
 ## [0.3.8] - 2026-11-19
 
@@ -397,8 +395,8 @@ for that history.
   into one `.png` part. The fallback now gets the same placeholder PNG that
   pptxgenjs 3.12 wrote.
 
-[Unreleased]: https://github.com/DaBorsten/pptx-templates/compare/v0.4.0...HEAD
-[0.4.0]: https://github.com/DaBorsten/pptx-templates/compare/v0.3.8...v0.4.0
+[Unreleased]: https://github.com/DaBorsten/pptx-templates/compare/v0.3.9...HEAD
+[0.3.9]: https://github.com/DaBorsten/pptx-templates/compare/v0.3.8...v0.3.9
 [0.3.8]: https://github.com/DaBorsten/pptx-templates/compare/v0.3.7...v0.3.8
 [0.3.7]: https://github.com/DaBorsten/pptx-templates/compare/v0.3.6...v0.3.7
 [0.3.6]: https://github.com/DaBorsten/pptx-templates/compare/v0.3.5...v0.3.6
