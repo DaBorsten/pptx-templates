@@ -51,6 +51,15 @@ export const renderTemplate =
       return rels.documentElement as unknown as XmlElement;
     };
 
+    let stylesPromise: ReturnType<typeof loadSlideStyles> | undefined;
+    const styles = () =>
+      part?.targetArchive && part.targetPath
+        ? (stylesPromise ??= loadSlideStyles(
+            part.targetArchive,
+            part.targetPath,
+          ))
+        : Promise.resolve(undefined);
+
     const renderContext: RenderContext = {
       relations,
       images: async () => {
@@ -62,12 +71,10 @@ export const renderTemplate =
           template: part.targetTemplate,
           relsPath,
           relations: await relations(),
+          styles,
         };
       },
-      styles: async () =>
-        part?.targetArchive && part.targetPath
-          ? loadSlideStyles(part.targetArchive, part.targetPath)
-          : undefined,
+      styles,
     };
 
     const renderer = new TemplateRenderer(await data, options, renderContext);

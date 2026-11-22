@@ -115,6 +115,12 @@ export type TemplateCommandType =
   | 'IMAGE'
   | 'HIDE-SLIDE';
 
+/**
+ * IMAGE options that a shape filled through its alt text decides itself
+ * (size and rotation); renderer and lint reject them there.
+ */
+export const FILL_FIXED_OPTIONS = ['width', 'height', 'rotation'] as const;
+
 /** Value of an `{{IMAGE …}}` tag (docx-templates compatible). */
 export type TemplateImage = {
   /**

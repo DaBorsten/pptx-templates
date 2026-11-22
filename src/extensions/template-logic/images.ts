@@ -9,8 +9,13 @@ import { PptPaths } from '../../helper/ppt-paths';
 import { imageDimensions } from '../../helper/image-dimensions';
 import { ContentTypeExtension } from '../../enums/content-type-map';
 import ModifyShapeHelper from '../../helper/modify-shape-helper';
-import { applyGeometry, resolveGeometry } from '../shape-geometry';
-import { TemplateImage } from './types';
+import {
+  applyGeometry,
+  resolveGeometry,
+  SPPR_CHILD_ORDER,
+} from '../shape-geometry';
+import { inheritedPlaceholders, SlideStyles } from '../text-flow/styles';
+import { FILL_FIXED_OPTIONS, TemplateImage } from './types';
 
 /**
  * {{IMAGE …}} support: writes the image into ppt/media (deduplicated), adds
@@ -41,6 +46,8 @@ export type ImageTarget = {
   relations: XmlElement;
   /** Highest shape id handed out so far in this render. */
   lastShapeId?: number;
+  /** Layout and master of the slide, for placeholders without own size. */
+  styles?: () => Promise<Pick<SlideStyles, 'layout' | 'master'> | undefined>;
 };
 
 type Frame = { x: number; y: number; cx: number; cy: number };
@@ -163,15 +170,18 @@ const styleShape = (picture: XmlElement, image: LoadedImage, box: Frame) => {
   const { spec } = image;
   const spPr = XmlHelper.getFirstDirectChild(picture, ['p:spPr']);
   applyGeometry(spPr, geometryFor(spec, box));
-  if (spec.border) {
-    ModifyShapeHelper.setOutline({
-      weight: Math.round(spec.border.width * EMU_PER_PT),
-      color: {
-        type: 'srgbClr',
-        value: spec.border.color.replace(/^#/, '').toUpperCase(),
-      },
-    })(picture);
-  }
+  applyBorder(picture, spec);
+};
+
+const applyBorder = (shape: XmlElement, spec: TemplateImage) => {
+  if (!spec.border) return;
+  ModifyShapeHelper.setOutline({
+    weight: Math.round(spec.border.width * EMU_PER_PT),
+    color: {
+      type: 'srgbClr',
+      value: spec.border.color.replace(/^#/, '').toUpperCase(),
+    },
+  })(shape);
 };
 
 const childElement = (parent: XmlElement, tagName: string) => {
@@ -196,15 +206,20 @@ const shapeFrame = (shape: XmlElement): Frame | undefined => {
   };
 };
 
-/** Size in EMU: explicit cm, the other side from the aspect ratio, else fit. */
-const imageSize = (image: LoadedImage, slot: Frame) => {
-  let ratio = 1;
+/** Width / height of the picture; 1 if its dimensions are unknown. */
+const aspectRatio = (image: LoadedImage): number => {
   try {
     const { width, height } = imageDimensions(image.content);
-    if (width > 0 && height > 0) ratio = width / height;
+    if (width > 0 && height > 0) return width / height;
   } catch {
     // Unknown dimensions: square
   }
+  return 1;
+};
+
+/** Size in EMU: explicit cm, the other side from the aspect ratio, else fit. */
+const imageSize = (image: LoadedImage, slot: Frame) => {
+  const ratio = aspectRatio(image);
   const { width, height } = image.spec;
   if (width && height) {
     return { cx: width * EMU_PER_CM, cy: height * EMU_PER_CM };
@@ -370,4 +385,319 @@ export const placeImages = async (
   }
 
   if (removeShape) shape.parentNode.removeChild(shape);
+};
+
+/*
+ * {{IMAGE …}} in the alt text of a picture or shape: the picture takes the
+ * place of the one there (or fills the shape), cropped to cover it.
+ */
+
+const FILL_TAGS = [
+  'a:noFill',
+  'a:solidFill',
+  'a:gradFill',
+  'a:blipFill',
+  'a:pattFill',
+  'a:grpFill',
+];
+
+const createElement = (
+  doc: XmlElement['ownerDocument'],
+  tag: string,
+  attrs: Record<string, string | number> = {},
+  ...children: XmlElement[]
+): XmlElement => {
+  const node = doc.createElement(tag) as unknown as XmlElement;
+  Object.entries(attrs).forEach(([k, v]) => node.setAttribute(k, String(v)));
+  children.forEach((child) => node.appendChild(child));
+  return node;
+};
+
+/** Placeholder types PowerPoint can put a picture into. */
+const PICTURE_PLACEHOLDERS = ['pic', 'obj', 'clipArt'];
+
+/**
+ * An empty placeholder that can hold a picture: it then becomes a picture
+ * in that placeholder. A placeholder with text, or one for a title or
+ * body, is filled like any shape, so its text stays.
+ */
+const takesPicture = (shape: XmlElement): boolean => {
+  const ph = childElement(
+    childElement(childElement(shape, 'p:nvSpPr'), 'p:nvPr'),
+    'p:ph',
+  );
+  if (!ph) return false;
+  if (!PICTURE_PLACEHOLDERS.includes(ph.getAttribute('type') || 'obj')) {
+    return false;
+  }
+  const body = childElement(shape, 'p:txBody');
+  return !body || (body.textContent ?? '').trim() === '';
+};
+
+/**
+ * How the groups around `shape` stretch it: ext / chExt of each group,
+ * multiplied. 1 × 1 outside a group.
+ */
+const groupScale = (shape: XmlElement): { sx: number; sy: number } => {
+  let sx = 1;
+  let sy = 1;
+  for (
+    let group = shape.parentNode as XmlElement;
+    group?.tagName === 'p:grpSp';
+    group = group.parentNode as XmlElement
+  ) {
+    const xfrm = childElement(childElement(group, 'p:grpSpPr'), 'a:xfrm');
+    const ext = childElement(xfrm, 'a:ext');
+    const chExt = childElement(xfrm, 'a:chExt');
+    const ratio = (attr: string) => {
+      const child = Number(chExt?.getAttribute(attr));
+      const own = Number(ext?.getAttribute(attr));
+      return child > 0 && own > 0 ? own / child : 1;
+    };
+    sx *= ratio('cx');
+    sy *= ratio('cy');
+  }
+  return { sx, sy };
+};
+
+/**
+ * Size of a shape as shown on the slide (scaled by the groups around it);
+ * a placeholder without its own takes the layout's.
+ */
+const coverSize = async (
+  target: ImageTarget,
+  shape: XmlElement,
+): Promise<{ cx: number; cy: number } | undefined> => {
+  let size: { cx: number; cy: number } | undefined = shapeFrame(shape);
+  if (!size) {
+    const styles = await target.styles?.();
+    if (!styles) return undefined;
+    size = inheritedPlaceholders(shape, styles).map(shapeFrame).find(Boolean);
+    if (!size) return undefined;
+  }
+  const { sx, sy } = groupScale(shape);
+  return { cx: size.cx * sx, cy: size.cy * sy };
+};
+
+type Insets = Record<string, number>;
+
+/**
+ * <a:srcRect> insets that crop the picture to the aspect ratio of the
+ * frame, evenly on both sides, so that it covers the frame without
+ * distortion. Values in 1/1000 %.
+ */
+const coverCrop = (ratio: number, size: { cx: number; cy: number }): Insets => {
+  const frame = size.cx / size.cy;
+  if (ratio > frame) {
+    const side = Math.round(((1 - frame / ratio) / 2) * 100000);
+    return side > 0 ? { l: side, r: side } : {};
+  }
+  if (ratio < frame) {
+    const side = Math.round(((1 - ratio / frame) / 2) * 100000);
+    return side > 0 ? { t: side, b: side } : {};
+  }
+  return {};
+};
+
+/**
+ * The same cover as <a:fillRect> insets: the fill rectangle reaches past
+ * the shape (negative insets), the picture is stretched into it. For the
+ * picture fill of a shape (a:blipFill), where LibreOffice ignores
+ * a:srcRect; PowerPoint reads both.
+ */
+const coverStretch = (
+  ratio: number,
+  size: { cx: number; cy: number },
+): Insets => {
+  const frame = size.cx / size.cy;
+  if (ratio > frame) {
+    const side = -Math.round(((ratio / frame - 1) / 2) * 100000);
+    return side < 0 ? { l: side, r: side } : {};
+  }
+  if (ratio < frame) {
+    const side = -Math.round(((frame / ratio - 1) / 2) * 100000);
+    return side < 0 ? { t: side, b: side } : {};
+  }
+  return {};
+};
+
+/** blip + srcRect + stretch, in a p:blipFill or a:blipFill. */
+const fillBlip = (
+  blipFill: XmlElement,
+  relId: string,
+  crop: Insets,
+  stretch: Insets = {},
+): void => {
+  const doc = blipFill.ownerDocument;
+  // A fresh blip: the old one may carry an SVG or effects of the backup
+  for (const tag of ['a:blip', 'a:srcRect', 'a:tile', 'a:stretch']) {
+    for (
+      let el = childElement(blipFill, tag);
+      el;
+      el = childElement(blipFill, tag)
+    ) {
+      blipFill.removeChild(el);
+    }
+  }
+  const first = blipFill.firstChild;
+  blipFill.insertBefore(
+    createElement(doc, 'a:blip', { 'r:embed': relId }),
+    first,
+  );
+  blipFill.insertBefore(createElement(doc, 'a:srcRect', crop), first);
+  blipFill.insertBefore(
+    createElement(
+      doc,
+      'a:stretch',
+      {},
+      createElement(doc, 'a:fillRect', stretch),
+    ),
+    first,
+  );
+};
+
+/** Relationship ids referenced in `el` and below (r:embed, r:link, r:id, …). */
+const relationIds = (el: XmlElement | undefined): string[] => {
+  if (!el) return [];
+  const ids: string[] = [];
+  const visit = (node: XmlElement) => {
+    for (let i = 0; i < node.attributes.length; i++) {
+      const attr = node.attributes[i];
+      if (attr.name.startsWith('r:')) ids.push(attr.value);
+    }
+    for (let n = node.firstChild; n; n = n.nextSibling) {
+      if (n.nodeType === 1) visit(n as XmlElement);
+    }
+  };
+  visit(el);
+  return ids;
+};
+
+/** Drops the image relationships of `ids` that nothing references any more. */
+const dropUnusedRelations = (
+  target: ImageTarget,
+  doc: XmlElement['ownerDocument'],
+  ids: string[],
+): void => {
+  if (!ids.length) return;
+  const used = new Set(
+    relationIds(doc.documentElement as unknown as XmlElement),
+  );
+  XmlHelper.collectionToArray(
+    target.relations.getElementsByTagName('Relationship'),
+  )
+    .filter(
+      (rel) =>
+        ids.includes(rel.getAttribute('Id')) &&
+        !used.has(rel.getAttribute('Id')) &&
+        rel.getAttribute('Type') === REL_TYPE_IMAGE,
+    )
+    .forEach((rel) => rel.parentNode.removeChild(rel));
+};
+
+/** The empty placeholder `shape` as a picture, as PowerPoint inserts one. */
+const pictureFromPlaceholder = (shape: XmlElement): XmlElement => {
+  const doc = shape.ownerDocument;
+  const nvSpPr = childElement(shape, 'p:nvSpPr');
+  const spPr = childElement(shape, 'p:spPr');
+  return createElement(
+    doc,
+    'p:pic',
+    {},
+    createElement(
+      doc,
+      'p:nvPicPr',
+      {},
+      cloneNodeDeep(childElement(nvSpPr, 'p:cNvPr')),
+      createElement(
+        doc,
+        'p:cNvPicPr',
+        {},
+        createElement(doc, 'a:picLocks', { noGrp: 1, noChangeAspect: 1 }),
+      ),
+      cloneNodeDeep(childElement(nvSpPr, 'p:nvPr')),
+    ),
+    createElement(doc, 'p:blipFill'),
+    spPr ? cloneNodeDeep(spPr) : createElement(doc, 'p:spPr'),
+  );
+};
+
+const cloneNodeDeep = (el: XmlElement): XmlElement =>
+  el.cloneNode(true) as XmlElement;
+
+/**
+ * Puts the picture into a picture or shape that has the tag in its alt
+ * text, cropped so that it covers the shape without distortion:
+ * - a picture (also one in a placeholder, e.g. a backup picture) gets the
+ *   new picture instead of its own; position, shape and placeholder stay;
+ * - an empty placeholder becomes a picture in that placeholder;
+ * - any other shape gets the picture as its fill.
+ *
+ * Returns the element that now holds the alt text.
+ */
+export const fillWithImage = async (
+  target: ImageTarget,
+  shape: XmlElement,
+  image: LoadedImage,
+): Promise<XmlElement> => {
+  const { spec } = image;
+  if (shape?.tagName !== 'p:pic' && shape?.tagName !== 'p:sp') {
+    throw new Error(
+      `IMAGE in alt text works on pictures, placeholders and shapes, not on <${shape?.tagName}>`,
+    );
+  }
+  for (const key of FILL_FIXED_OPTIONS) {
+    if (spec[key] !== undefined) {
+      throw new Error(
+        `IMAGE in alt text fills the shape; "${key}" is not supported there ` +
+          '(size and rotation come from the shape)',
+      );
+    }
+  }
+  const size = await coverSize(target, shape);
+  if (!size?.cx || !size.cy) {
+    throw new Error(
+      'IMAGE: the shape has no size, and no placeholder on the layout to inherit one from',
+    );
+  }
+
+  const doc = shape.ownerDocument;
+  const relId = addRelation(target, await mediaFile(target, image));
+  const ratio = aspectRatio(image);
+  const crop = coverCrop(ratio, size);
+  let holder = shape;
+  let replaced: string[] = [];
+
+  if (shape.tagName === 'p:pic') {
+    const blipFill = childElement(shape, 'p:blipFill');
+    replaced = relationIds(blipFill);
+    fillBlip(blipFill, relId, crop);
+  } else if (takesPicture(shape)) {
+    holder = pictureFromPlaceholder(shape);
+    fillBlip(childElement(holder, 'p:blipFill'), relId, crop);
+    shape.parentNode.replaceChild(holder, shape);
+  } else {
+    const spPr = childElement(shape, 'p:spPr');
+    FILL_TAGS.forEach((tag) => {
+      const old = childElement(spPr, tag);
+      if (!old) return;
+      replaced.push(...relationIds(old));
+      spPr.removeChild(old);
+    });
+    const blipFill = createElement(doc, 'a:blipFill', { rotWithShape: 1 });
+    fillBlip(blipFill, relId, {}, coverStretch(ratio, size));
+    XmlHelper.insertInSchemaOrder(spPr, blipFill, SPPR_CHILD_ORDER);
+  }
+
+  // The shape keeps its own geometry (e.g. the circle of the layout)
+  // unless the tag asks for another one
+  if (spec.shape || spec.cornerRadius != null || spec.shapeAdjustments) {
+    applyGeometry(
+      XmlHelper.getFirstDirectChild(holder, ['p:spPr']),
+      geometryFor(spec, size),
+    );
+  }
+  applyBorder(holder, spec);
+  dropUnusedRelations(target, doc, replaced);
+  return holder;
 };

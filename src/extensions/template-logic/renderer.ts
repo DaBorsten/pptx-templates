@@ -13,13 +13,14 @@ import {
 } from './expression';
 import {
   fixSmartQuotes,
+  isAltTextTemplate,
   isTableMarker,
   ParsedCommand,
   parseCommand,
   resolveAlias,
   tagSyntax,
 } from './commands';
-import { ImageTarget, loadImage, placeImages } from './images';
+import { fillWithImage, ImageTarget, loadImage, placeImages } from './images';
 import { cloneXml } from './clone';
 import { flowArguments, FlowShown, SlideStyles, TextFlow } from '../text-flow';
 import { log } from '../../helper/logger';
@@ -135,6 +136,8 @@ const STRUCTURAL_TYPES: DirectiveType[] = [
   'html',
   'image',
 ];
+/** Tags that work in alt text (renderAltTexts). */
+const ALT_TEXT_TYPES: DirectiveType[] = [...BLOCK_TYPES, 'exec', 'image'];
 /** Tags that produce visible content (keep a table row). */
 const CONTENT_TYPES: DirectiveType[] = ['insert', 'html', 'link'];
 
@@ -171,6 +174,14 @@ const REL_TYPE_SLIDE =
 
 const textControl = (token: TextToken) =>
   token.kind === 'tag' ? token : undefined;
+
+/** `node` is still in `root` (not removed while rendering). */
+const isWithin = (node: XmlElement, root: XmlDocument | XmlElement) => {
+  for (let n: unknown = node; n; n = (n as XmlElement).parentNode) {
+    if (n === root) return true;
+  }
+  return false;
+};
 
 const isThenable = (value: unknown): value is PromiseLike<unknown> =>
   !!value && typeof (value as PromiseLike<unknown>).then === 'function';
@@ -250,6 +261,8 @@ export class TemplateRenderer {
   /** flow(list, n, options): the options per box, as an expression. */
   private readonly flowOptions = new Map<XmlElement, Expr>();
   private currentBody?: XmlElement;
+  /** Rendering an alt text (renderAltTexts). */
+  private inAltText = false;
   /** Set while a copy of a body is rendered to measure it. */
   private flowOverride?: () => unknown[];
 
@@ -296,6 +309,9 @@ export class TemplateRenderer {
     this.collectAliases(element);
     const targets = this.findTargets(element);
     this.setupFlow(targets);
+    // Collected before the text is rendered: alt text written while
+    // rendering (IMAGE … alt from the data) is content, not a template
+    const altTexts = this.altTextHolders(element);
 
     for (const target of targets) {
       this.currentBody = target.tagName === 'p:txBody' ? target : undefined;
@@ -317,6 +333,10 @@ export class TemplateRenderer {
     this.textFlow
       ?.emptyGroups()
       .forEach((group) => group.parentNode?.removeChild(group));
+
+    await this.renderAltTexts(
+      altTexts.filter((cNvPr) => isWithin(cNvPr, element)),
+    );
 
     if (this.errors.length) {
       throw new TemplateRenderError(
@@ -416,6 +436,12 @@ export class TemplateRenderer {
 
   private flowEntries(list: unknown): unknown[] {
     if (this.flowOverride) return this.flowOverride();
+    if (this.inAltText && !this.currentBody) {
+      throw new Error(
+        'flow() in alt text works only on a shape in a card: a group ' +
+          'with a text box that loops over flow(…)',
+      );
+    }
     if (!this.textFlow) {
       throw new Error(
         'flow() works only in the loop of a text box, not in a table',
@@ -1088,10 +1114,7 @@ export class TemplateRenderer {
         this.warnHideSlide(directive.tag);
         break;
       case 'exec':
-        for (const statement of directive.statements) {
-          const value = await evaluate(statement.expr);
-          if (statement.assign) scope.assign(statement.assign, value);
-        }
+        await this.runExec(directive.statements, scope, tag);
         break;
       case 'html': {
         const html = this.format(await evaluate(directive.expr));
@@ -1161,6 +1184,148 @@ export class TemplateRenderer {
       ? this.context.images()
       : Promise.resolve(undefined);
     return this.imageTargetPromise;
+  }
+
+  /**
+   * The alt text of a picture or shape as a small template: `{{IMAGE …}}`,
+   * optionally inside IF and FOR blocks and with EXEC, and nothing else.
+   * The picture it yields fills the shape (fillWithImage). Rendered after
+   * the text, so EXEC variables apply; in a flow() card, flow(list) gives
+   * the entries of that card. No picture (no IMAGE reached, or null,
+   * undefined, '') keeps the picture that is there (a backup). Only alt
+   * texts of tags with an IMAGE among them count (isAltTextTemplate).
+   */
+  private altTextHolders(element: XmlDocument | XmlElement): XmlElement[] {
+    const commandType = (inner: string, tag: string) => {
+      try {
+        return parseCommand(resolveAlias(inner, this.aliases, tag), tag).type;
+      } catch {
+        return undefined;
+      }
+    };
+    return XmlHelper.collectionToArray(
+      element.getElementsByTagName('p:cNvPr'),
+    ).filter((cNvPr) =>
+      isAltTextTemplate(
+        cNvPr.getAttribute('descr') ?? '',
+        this.tagPattern,
+        commandType,
+      ),
+    );
+  }
+
+  private async renderAltTexts(holders: XmlElement[]): Promise<void> {
+    for (const cNvPr of holders) {
+      const descr = cNvPr.getAttribute('descr');
+      const shape = cNvPr.parentNode?.parentNode as XmlElement;
+      const matches = [...descr.matchAll(this.tagPattern)];
+      const first = matches[0][0];
+      type AltTag = { tag: string; directive: Directive };
+      let blocks: Block<AltTag>[];
+      // The tag never reaches the output, also not after an error
+      // (errorHandler, continueOnError)
+      cNvPr.removeAttribute('descr');
+      try {
+        const tags = matches.map((match) => {
+          const directive = this.parseDirective(match[1], match[0]);
+          if (!ALT_TEXT_TYPES.includes(directive.type)) {
+            throw this.tagged(
+              new Error(
+                'only IMAGE, IF, ELSE-IF, ELSE, FOR and EXEC work in alt text',
+              ),
+              match[0],
+            );
+          }
+          return { tag: match[0], directive };
+        });
+        blocks = this.parse(tags, (tag) => tag);
+      } catch (error) {
+        await this.fail(first, error);
+        continue;
+      }
+
+      const images: { tag: string; value: unknown }[] = [];
+      const saved = { body: this.currentBody, altText: this.inAltText };
+      this.currentBody = this.textFlow?.boxOfCard(shape);
+      this.inAltText = true;
+      try {
+        await this.evaluate(
+          blocks,
+          this.root,
+          async ({ tag, directive }, scope) => {
+            if (directive.type === 'exec') {
+              await this.runExec(directive.statements, scope, tag);
+            } else if (directive.type === 'image') {
+              const value = await this.value(tag, () =>
+                directive.expr.evaluate(scope, this.evaluation),
+              );
+              if (value !== null && value !== undefined && value !== '') {
+                images.push({ tag, value });
+              }
+            }
+          },
+        );
+      } finally {
+        this.currentBody = saved.body;
+        this.inAltText = saved.altText;
+      }
+      if (!images.length) continue;
+      const { tag, value } = images[0];
+      if (images.length > 1) {
+        const error = new Error(
+          `the alt text yields ${images.length} pictures; a shape holds one`,
+        );
+        await this.fail(images[1].tag, error);
+        continue;
+      }
+
+      const image = await this.value(tag, async () => {
+        if (!(await this.imageTarget())) {
+          throw new Error(
+            'IMAGE needs slide.modify(modify.renderTemplate(…)); ' +
+              'modifyElement() callbacks cannot add media files',
+          );
+        }
+        return loadImage(value, this.options.imageRoot);
+      });
+      if (!image || typeof image !== 'object' || !('content' in image))
+        continue;
+      const loaded = image as ReturnType<typeof loadImage>;
+      try {
+        const holder = await fillWithImage(
+          await this.imageTarget(),
+          shape,
+          loaded,
+        );
+        if (loaded.spec.alt) {
+          holder
+            .getElementsByTagName('p:cNvPr')[0]
+            ?.setAttribute('descr', loaded.spec.alt);
+        }
+      } catch (error) {
+        await this.fail(tag, error);
+      }
+    }
+  }
+
+  /** An error at `tag`, handled as in value(): errorHandler, collected or thrown. */
+  private async fail(tag: string, error: unknown): Promise<void> {
+    await this.value(tag, () => {
+      throw error;
+    });
+  }
+
+  private async runExec(
+    statements: Statement[],
+    scope: Scope,
+    tag: string,
+  ): Promise<void> {
+    for (const statement of statements) {
+      const value = await this.value(tag, () =>
+        statement.expr.evaluate(scope, this.evaluation),
+      );
+      if (statement.assign) scope.assign(statement.assign, value);
+    }
   }
 
   /** Pictures go where the shape is; a shape left without text is removed. */

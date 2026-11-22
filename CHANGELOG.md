@@ -6,6 +6,26 @@ semver, with the pre-1.0 convention that **breaking changes bump the minor**.
 
 ## [Unreleased]
 
+## [0.3.9] - 2026-11-22
+
+### Added
+
+- `{{IMAGE …}}` in the **alt text** of a picture placeholder (or any
+  picture or shape) fills it with the picture, cropped to cover it
+  without distortion, also in a circle. The placeholder keeps its
+  position, shape and link to the layout, so the picture can still be
+  replaced by hand in PowerPoint. A picture already in the placeholder is
+  the backup: it stays when the value is empty. The alt text can choose the
+  picture with `IF`/`ELSE`, `FOR`, `EXEC` or the ternary operator. In a
+  `flow()` card, `flow(list)` there gives the entry of the card, so every
+  card shows its own picture. `listTemplateCommands` and `lintTemplate` see
+  these tags too.
+- Only an alt text that holds nothing but tags, with an `IMAGE` among
+  them, is rendered, with the configured delimiters. Every other alt text
+  stays as it is, as before (`Preis {{ in Euro`, `Foto: {{IMAGE foto}}`);
+  `lintTemplate` warns when one of them contains a tag. An `alt` from the
+  data is never rendered.
+
 ## [0.3.8] - 2026-11-19
 
 ### Changed
@@ -375,7 +395,8 @@ for that history.
   into one `.png` part. The fallback now gets the same placeholder PNG that
   pptxgenjs 3.12 wrote.
 
-[Unreleased]: https://github.com/DaBorsten/pptx-templates/compare/v0.3.8...HEAD
+[Unreleased]: https://github.com/DaBorsten/pptx-templates/compare/v0.3.9...HEAD
+[0.3.9]: https://github.com/DaBorsten/pptx-templates/compare/v0.3.8...v0.3.9
 [0.3.8]: https://github.com/DaBorsten/pptx-templates/compare/v0.3.7...v0.3.8
 [0.3.7]: https://github.com/DaBorsten/pptx-templates/compare/v0.3.6...v0.3.7
 [0.3.6]: https://github.com/DaBorsten/pptx-templates/compare/v0.3.5...v0.3.6

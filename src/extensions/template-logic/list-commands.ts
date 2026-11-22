@@ -2,6 +2,7 @@ import fs from 'fs';
 import JSZip from 'jszip';
 import { DOMParser } from '@xmldom/xmldom';
 import {
+  isAltTextTemplate,
   isTableMarker,
   parseCommand,
   resolveAlias,
@@ -88,6 +89,35 @@ export const listTemplateCommands = async (
         commands.push({
           slide,
           shape: shapeName(paragraph),
+          raw: match[0],
+          type: command.type,
+          code: command.code,
+        });
+      }
+    });
+
+    // {{IMAGE …}} in the alt text of a picture or shape
+    Array.from(
+      doc.getElementsByTagName('p:cNvPr') as unknown as ArrayLike<Element>,
+    ).forEach((cNvPr) => {
+      const descr = cNvPr.getAttribute('descr') ?? '';
+      const commandType = (inner: string, tag: string) => {
+        try {
+          return parseCommand(resolveAlias(inner, aliases, tag), tag).type;
+        } catch {
+          return undefined;
+        }
+      };
+      // Other alt texts are not rendered (isAltTextTemplate)
+      if (!isAltTextTemplate(descr, pattern, commandType)) return;
+      for (const match of descr.matchAll(pattern)) {
+        const command = parseCommand(
+          resolveAlias(match[1], aliases, match[0]),
+          match[0],
+        );
+        commands.push({
+          slide,
+          shape: cNvPr.getAttribute('name') || undefined,
           raw: match[0],
           type: command.type,
           code: command.code,

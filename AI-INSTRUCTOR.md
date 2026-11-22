@@ -813,7 +813,8 @@ equal share of the frame. If no text is left in the shape after rendering,
 the shape is removed and only the pictures remain.
 
 - The shape needs its own position and size. Placeholders that inherit
-  them from the layout are not supported.
+  them from the layout are not supported in the text; write the tag into
+  their alt text instead (see below).
 - A string that ends in `.png`, `.jpg`, `.jpeg` or `.gif` is a file path
   (base64 has no dot). It is read from `imageRoot` and cannot leave that
   folder; without `imageRoot` it is an error. `null`, `undefined` and `''`
@@ -822,6 +823,91 @@ the shape is removed and only the pictures remain.
 - Identical images are stored only once in the output.
 - `IMAGE` writes a media file, so it needs `slide.modify(modify.renderTemplate(…))`.
   A `modifyElement()` callback cannot add files and rejects with an error.
+
+#### Picture placeholders: the tag in the alt text
+
+To fill a picture placeholder of the slide master, for example a circle,
+write the tag into the **alt text** of the placeholder on the slide (right
+click → *View Alt Text*), not into its text:
+
+```text
+{{IMAGE foto}}
+```
+
+The picture then fills the placeholder the way a picture inserted in
+PowerPoint does:
+
+- It covers the whole shape **without distortion**. A picture with another
+  aspect ratio than the placeholder is cropped evenly on both sides
+  (`a:srcRect`), so no edge stays empty, also in a circle.
+- Position, size and shape stay the ones of the placeholder, inherited
+  from the layout. The result is a picture *in the placeholder*: in
+  PowerPoint you can still replace it by hand (*Change Picture*), and
+  deleting it brings back the empty placeholder.
+- **Backup picture:** if the placeholder already holds a picture, the new
+  one replaces it. Without a value (`null`, `undefined`, `''`) the backup
+  stays. The alt text is removed either way, or set to `alt`.
+
+The same works in the alt text of an empty picture or content placeholder
+(it becomes a picture in that placeholder) and of any picture. Every other
+shape keeps its text and gets the picture as its fill, cropped the same
+way: a shape that is no placeholder, a title or text placeholder, and a
+placeholder that already holds text. Tables, charts and groups cannot
+take a picture; a tag in their alt text is an error.
+
+The object form takes `alt`, `shape`, `cornerRadius`, `shapeAdjustments`
+and `border` as above. `width`, `height` and `rotation` are an error here,
+since the shape decides them; `lintTemplate` reports them as well.
+
+An alt text counts as a template only when it holds **nothing but tags,
+with an `IMAGE` among them**. Any other alt text stays as it is, so a
+description like `Preis {{ in Euro`, `Foto: {{IMAGE foto}}` or `{{name}}`
+is not rendered; `lintTemplate` warns about the last two, since their tag
+most likely was meant to work. The tags use the configured delimiters
+(`openingTag`/`closingTag` or `cmdDelimiter`, see
+[Options](#options)), like the text.
+
+Only the alt texts of the template are rendered. An `alt` from the data
+(`{{IMAGE ({ data: foto, alt: caption })}}`) is written as it is, also
+when it contains tags.
+
+##### Conditions and loops in the alt text
+
+Besides `IMAGE`, these work in the alt text:
+`IF`/`ELSE-IF`/`ELSE`/`END-IF`, `FOR`/`END-FOR` and `EXEC`. Any other
+tag, or a block that is not closed, is an error. With an `errorHandler`,
+the alt text is removed and the shape stays as it is. One shape takes one
+picture: if the alt text yields more than one, that is an error. If it
+yields none, the backup stays.
+
+```text
+{{IF person.foto}}{{IMAGE person.foto}}{{ELSE}}{{IMAGE 'avatar.png'}}{{END-IF}}
+```
+
+For a choice between two pictures, the ternary operator is shorter:
+
+```text
+{{IMAGE person.foto ? person.foto : 'avatar.png'}}
+```
+
+Alt-text tags are rendered after the text of the slide, so variables from
+`EXEC` apply. Loop variables of a `FOR` in the text do not, because a
+loop in the text repeats paragraphs, not shapes.
+
+In a [`flow()` card](https://daborsten.github.io/pptx-templates/text-flow.md#cards-one-entry-in-several-text-boxes)
+(a group), `flow(list)` in the alt text of a picture or shape gives the
+entries of that card, the same as in the text boxes of the card. So each
+card shows the picture of its own entry:
+
+```text
+{{FOR p IN flow(people, 1)}}{{IMAGE p.foto}}{{END-FOR}}
+```
+
+Outside a card, `flow()` in an alt text is an error.
+
+PowerPoint's *Picture (fill)* and *Picture (fit)* placeholders only take
+effect when you insert a picture by hand; a generated file stores the crop
+itself. The tag always crops as *fill* does.
 
 ### Expressions
 

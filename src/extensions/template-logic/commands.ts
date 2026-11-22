@@ -46,6 +46,26 @@ export const tagSyntax = (
 };
 
 /**
+ * An alt text is a template only when it holds nothing but tags and one
+ * of them is an IMAGE. Any other alt text (`Preis {{ in Euro`,
+ * `Foto: {{IMAGE foto}}`, `{{name}}`) stays as it is, as it did before
+ * alt texts were rendered. `commandType` gives the command of a tag, or
+ * undefined if it does not parse.
+ */
+export const isAltTextTemplate = (
+  descr: string,
+  pattern: RegExp,
+  commandType: (inner: string, tag: string) => string | undefined,
+): boolean => {
+  const matches = [...descr.matchAll(pattern)];
+  return (
+    matches.length > 0 &&
+    descr.replace(pattern, '').trim() === '' &&
+    matches.some((match) => commandType(match[1], match[0]) === 'IMAGE')
+  );
+};
+
+/**
  * Classifies the inside of a tag (`IF a > 1`, `= name`, `item.price`, …),
  * following the docx-templates command set. `*alias` references must be
  * resolved by the caller before.
