@@ -6,6 +6,8 @@ semver, with the pre-1.0 convention that **breaking changes bump the minor**.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-22
+
 ### Added
 
 - `{{IMAGE …}}` in the **alt text** of a picture placeholder (or any
@@ -395,7 +397,8 @@ for that history.
   into one `.png` part. The fallback now gets the same placeholder PNG that
   pptxgenjs 3.12 wrote.
 
-[Unreleased]: https://github.com/DaBorsten/pptx-templates/compare/v0.3.8...HEAD
+[Unreleased]: https://github.com/DaBorsten/pptx-templates/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/DaBorsten/pptx-templates/compare/v0.3.8...v0.4.0
 [0.3.8]: https://github.com/DaBorsten/pptx-templates/compare/v0.3.7...v0.3.8
 [0.3.7]: https://github.com/DaBorsten/pptx-templates/compare/v0.3.6...v0.3.7
 [0.3.6]: https://github.com/DaBorsten/pptx-templates/compare/v0.3.5...v0.3.6
