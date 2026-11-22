@@ -1,3 +1,4 @@
+import path from 'path';
 import fs from 'fs';
 import JSZip from 'jszip';
 import { DOMParser } from '@xmldom/xmldom';
@@ -21,6 +22,9 @@ const SLIDE = 'ppt/slides/slide1.xml';
 const RELS = 'ppt/slides/_rels/slide1.xml.rels';
 const REL_IMAGE =
   'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+
+/** Zip path of a relationship target of a slide (`../media/x.png`). */
+const slidePart = (target: string) => path.posix.join('ppt/slides', target);
 
 const cNvPr = (descr: string) =>
   `<p:cNvPr id="10" name="Bildplatzhalter 1" descr="${descr
@@ -126,8 +130,7 @@ const render = async (
   return {
     slide: await parse(slidePath),
     rels,
-    media: (target) =>
-      zip.file(target.replace('../', 'ppt/')).async('nodebuffer'),
+    media: (target) => zip.file(slidePart(target)).async('nodebuffer'),
   };
 };
 
@@ -499,9 +502,7 @@ test('in a flow() card, flow() in the alt text gives the entry of that card', as
           name: Array.from(group.getElementsByTagName('a:t'))
             .map((t) => t.textContent)
             .join(''),
-          foto: await zip
-            .file(target.replace('../', 'ppt/'))
-            .async('nodebuffer'),
+          foto: await zip.file(slidePart(target)).async('nodebuffer'),
           descr: first(pic, 'p:cNvPr').hasAttribute('descr'),
         };
       }),
@@ -898,7 +899,7 @@ test('example deck: template and result for PowerPoint', async () => {
     const target = rels
       .find((r) => r.getAttribute('Id') === id)
       .getAttribute('Target');
-    return zip.file(target.replace('../', 'ppt/')).async('nodebuffer');
+    return zip.file(slidePart(target)).async('nodebuffer');
   };
   const crop = (shape: Element) => {
     const rect = first(shape, 'a:srcRect');
