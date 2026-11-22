@@ -33,7 +33,7 @@ const EMU_PER_UNIT: Record<string, number> = {
 };
 
 /** CT_ShapeProperties sequence (children of p:spPr). */
-const SPPR_CHILD_ORDER = [
+export const SPPR_CHILD_ORDER = [
   'a:xfrm',
   'a:custGeom',
   'a:prstGeom',

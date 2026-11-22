@@ -403,6 +403,19 @@ export class TextFlow {
   }
 
   /**
+   * The flow box of the card `shape` is in: a box in the nearest group
+   * around `shape` that has one. Its entries are the card's entries.
+   */
+  boxOfCard(shape: XmlElement): XmlElement | undefined {
+    for (let group = groupOf(shape); group; group = groupOf(group)) {
+      for (const body of this.keys.keys()) {
+        if (groupOf(body.parentNode as XmlElement) === group) return body;
+      }
+    }
+    return undefined;
+  }
+
+  /**
    * Cards (PowerPoint groups with flow boxes) that stay empty on the
    * rendered slide, such as the last columns of the last slide.
    */

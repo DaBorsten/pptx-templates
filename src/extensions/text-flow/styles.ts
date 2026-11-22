@@ -68,7 +68,9 @@ type Placeholder = { type: string; idx?: string };
 const placeholderOf = (
   shape: XmlElement | undefined,
 ): Placeholder | undefined => {
-  const ph = path(shape, 'p:nvSpPr', 'p:nvPr', 'p:ph');
+  const ph =
+    path(shape, 'p:nvSpPr', 'p:nvPr', 'p:ph') ??
+    path(shape, 'p:nvPicPr', 'p:nvPr', 'p:ph');
   if (!ph) return undefined;
   return {
     type: ph.getAttribute('type') || 'obj',
@@ -93,6 +95,25 @@ const findPlaceholder = (
     const other = placeholderOf(s);
     return other && typeOf(other) === typeOf(ph);
   });
+};
+
+/**
+ * The shapes a placeholder inherits from: its counterpart on the layout,
+ * then on the master. Empty for a shape that is no placeholder.
+ */
+export const inheritedPlaceholders = (
+  shape: XmlElement,
+  slide: Pick<SlideStyles, 'layout' | 'master'>,
+): XmlElement[] => {
+  const ph = placeholderOf(shape);
+  if (!ph) return [];
+  const layoutShape = findPlaceholder(slide.layout, ph, false);
+  const masterShape = findPlaceholder(
+    slide.master,
+    placeholderOf(layoutShape) ?? ph,
+    true,
+  );
+  return [layoutShape, masterShape].filter(Boolean);
 };
 
 const txStyleName = (ph: Placeholder): string => {

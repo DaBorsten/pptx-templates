@@ -94,6 +94,27 @@ export const listTemplateCommands = async (
         });
       }
     });
+
+    // {{IMAGE …}} in the alt text of a picture or shape
+    Array.from(
+      doc.getElementsByTagName('p:cNvPr') as unknown as ArrayLike<Element>,
+    ).forEach((cNvPr) => {
+      for (const match of (cNvPr.getAttribute('descr') ?? '').matchAll(
+        pattern,
+      )) {
+        const command = parseCommand(
+          resolveAlias(match[1], aliases, match[0]),
+          match[0],
+        );
+        commands.push({
+          slide,
+          shape: cNvPr.getAttribute('name') || undefined,
+          raw: match[0],
+          type: command.type,
+          code: command.code,
+        });
+      }
+    });
   }
   return commands;
 };

@@ -6,6 +6,26 @@ semver, with the pre-1.0 convention that **breaking changes bump the minor**.
 
 ## [Unreleased]
 
+### Added
+
+- `{{IMAGE …}}` in the **alt text** of a picture placeholder (or any
+  picture or shape) fills it with the picture, cropped to cover it
+  without distortion, also in a circle. The placeholder keeps its
+  position, shape and link to the layout, so the picture can still be
+  replaced by hand in PowerPoint. A picture already in the placeholder is
+  the backup: it stays when the value is empty. The alt text can choose the
+  picture with `IF`/`ELSE`, `FOR`, `EXEC` or the ternary operator. In a
+  `flow()` card, `flow(list)` there gives the entry of the card, so every
+  card shows its own picture. `listTemplateCommands` and `lintTemplate` see
+  these tags too.
+
+### Changed
+
+- An alt text in the template that contains `{{` is now rendered as a
+  template. One with other text in it (`Preis {{ in Euro`) is an error
+  instead of being left as it is. An `alt` from the data is never
+  rendered.
+
 ## [0.3.8] - 2026-11-19
 
 ### Changed

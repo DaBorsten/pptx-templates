@@ -15,6 +15,7 @@ import {
   TemplateExpression,
   TemplateExpressionError,
 } from '../template-logic/expression';
+import { FILL_FIXED_OPTIONS } from '../template-logic/types';
 import { DataModel, Known, suggest } from './data-model';
 import {
   LintTemplateOptions,
@@ -38,9 +39,21 @@ const BUILTIN_HELPERS: Record<string, unknown> = {
   flowPages: 1,
 };
 
+/** Commands that work in alt text (renderAltTexts). */
+const ALT_TEXT_COMMANDS = [
+  'IMAGE',
+  'IF',
+  'ELSE-IF',
+  'ELSE',
+  'END-IF',
+  'FOR',
+  'END-FOR',
+  'EXEC',
+];
+
 /** One stretch of runs: a tag must sit within it (renderer tokenizing). */
 type Segment = { text: string; paragraph: XmlElement; cell?: number };
-type Container = { kind: 'shape' | 'table'; segments: Segment[] };
+type Container = { kind: 'shape' | 'table' | 'alt'; segments: Segment[] };
 type OpenBlock = {
   type: 'IF' | 'FOR';
   tag: string;
@@ -117,7 +130,7 @@ const shapeOf = (node: XmlElement): XmlElement | undefined => {
     n;
     n = n.parentNode as XmlElement
   ) {
-    if (n.tagName === 'p:sp' || n.tagName === 'p:graphicFrame') return n;
+    if (['p:sp', 'p:pic', 'p:graphicFrame'].includes(n.tagName)) return n;
   }
   return undefined;
 };
@@ -179,6 +192,16 @@ const containersOf = (doc: XmlDocument): Container[] => {
     });
   };
   visit(doc);
+  // {{IMAGE …}} in alt text, rendered after all text (renderAltTexts)
+  descendants(doc, 'p:cNvPr').forEach((cNvPr) => {
+    const descr = cNvPr.getAttribute('descr');
+    if (descr) {
+      containers.push({
+        kind: 'alt',
+        segments: [{ text: descr, paragraph: cNvPr }],
+      });
+    }
+  });
   return containers;
 };
 
@@ -323,9 +346,44 @@ class TemplateLinter {
     })).filter((tag) => !isTableMarker(tag.inner));
   }
 
+  /**
+   * Alt text with a tag: tags only, on a picture or shape (the renderer
+   * fills it with the picture of its IMAGE).
+   */
+  private checkAltText(
+    segment: Segment,
+    report: (issue: Omit<IssueInput, 'shape'>) => void,
+  ): void {
+    if (!this.tagsIn(segment.text).length) return;
+    if (segment.text.replace(this.syntax.pattern, '').trim() !== '') {
+      report({
+        severity: 'error',
+        rule: 'unsupported-location',
+        message:
+          'Alt text with a tag holds only tags ({{IMAGE …}}, IF, FOR, EXEC), no other text',
+        hint: 'Write a description for screen readers with {{IMAGE ({ data: …, alt: "…" })}}.',
+      });
+    }
+    const holder = segment.paragraph.parentNode?.parentNode as XmlElement;
+    if (holder && !['p:sp', 'p:pic'].includes(holder.tagName)) {
+      report({
+        severity: 'error',
+        rule: 'unsupported-location',
+        message: `IMAGE in alt text works on pictures, placeholders and shapes, not on <${holder.tagName}>`,
+        hint: 'Write the tag into the alt text of a picture or shape.',
+      });
+    }
+  }
+
   lintSlide(part: string, slide: number, doc: XmlDocument): void {
     const report = (issue: IssueInput) => this.report(part, slide, issue);
-    const containers = containersOf(doc);
+    // Like the renderer, an alt text counts as a template only with an
+    // opening delimiter in it
+    const containers = containersOf(doc).filter(
+      (container) =>
+        container.kind !== 'alt' ||
+        container.segments[0].text.includes(this.syntax.opening),
+    );
     const allTags = containers.flatMap((c) =>
       c.segments.flatMap((s) => this.tagsIn(s.text)),
     );
@@ -361,6 +419,11 @@ class TemplateLinter {
         this.checkDelimiters(segment.text, (issue) =>
           report({ ...issue, shape: name }),
         );
+        if (container.kind === 'alt') {
+          this.checkAltText(segment, (issue) =>
+            report({ ...issue, shape: name }),
+          );
+        }
 
         for (const { raw, inner } of this.tagsIn(segment.text)) {
           // Without a more precise range, the whole tag is marked
@@ -390,6 +453,19 @@ class TemplateLinter {
               hint: unknownAlias
                 ? 'Define it on the same slide with {{ALIAS name command}}.'
                 : undefined,
+            });
+            continue;
+          }
+
+          if (
+            container.kind === 'alt' &&
+            !ALT_TEXT_COMMANDS.includes(command.type)
+          ) {
+            tagReport({
+              severity: 'error',
+              rule: 'unsupported-location',
+              message: `${raw} does not work in alt text; only IMAGE, IF, FOR and EXEC do`,
+              hint: 'Put the tag into the text of a shape.',
             });
             continue;
           }
@@ -552,6 +628,20 @@ class TemplateLinter {
                   message: 'IMAGE is not supported inside table cells',
                   hint: 'Put the tag into a text box or shape on top of the table.',
                 });
+              } else if (container.kind === 'alt') {
+                // Location checked by checkAltText; size and rotation
+                // come from the shape it fills
+                const fixed = (expr?.imageOptionKeys() ?? []).filter((key) =>
+                  (FILL_FIXED_OPTIONS as readonly string[]).includes(key),
+                );
+                [...new Set(fixed)].forEach((key) =>
+                  tagReport({
+                    severity: 'error',
+                    rule: 'unsupported-location',
+                    message: `IMAGE in alt text fills the shape; "${key}" is not supported there`,
+                    hint: 'Size and rotation come from the shape: remove the option, or resize the shape in PowerPoint.',
+                  }),
+                );
               } else if (!hasOwnFrame(shape)) {
                 tagReport({
                   severity: 'error',
@@ -560,8 +650,9 @@ class TemplateLinter {
                     'IMAGE needs a shape with its own position and size; ' +
                     'this one inherits them from the layout',
                   hint:
-                    'Move or resize the placeholder once in PowerPoint (that ' +
-                    'stores its own position), or use a text box.',
+                    'Write the tag into the alt text of the placeholder ' +
+                    'instead (it then fills the placeholder), move or resize ' +
+                    'the placeholder once in PowerPoint, or use a text box.',
                 });
               }
               break;

@@ -230,27 +230,33 @@ describe('lint --config --watch', () => {
       signal: controller.signal,
       watchTiming: { debounceMs: 50 },
     });
-    const runs = async (count: number) => {
+    // Waits for a finished run (its "Watching …" line) whose result has
+    // `text`, after the output so far. Not by counting runs: one change
+    // can fire several watcher events, hence several runs.
+    const runWith = async (text: string, from = stdout.length) => {
       const deadline = Date.now() + 8000;
-      while ((stdout.match(/Watching \d+ file/g) ?? []).length < count) {
-        if (Date.now() > deadline) throw new Error(`Timed out:\n${stdout}`);
+      for (;;) {
+        const since = stdout.slice(from);
+        const at = since.indexOf(text);
+        if (at >= 0 && /Watching \d+ file/.test(since.slice(at))) return;
+        if (Date.now() > deadline) {
+          throw new Error(`Timed out waiting for "${text}":\n${stdout}`);
+        }
         await new Promise((r) => setTimeout(r, 20));
       }
     };
-    await runs(1);
-    expect(stdout).toContain('No problems found in 6 file(s)');
+    await runWith('No problems found in 6 file(s)', 0);
 
-    // A new folder, then a deck in it
+    // A new folder (a run that watches it), then a deck in it
+    const beforeFolder = stdout.length;
     fs.mkdirSync(path.join(dir, 'customer-c'));
-    await runs(2);
+    await runWith('Watching ', beforeFolder);
     write('customer-c/cover_en.pptx', first.en);
-    await runs(3);
-    expect(stdout).toContain('No problems found in 7 file(s)');
+    await runWith('No problems found in 7 file(s)');
 
     // The English data loses "title": the English covers are wrong now
     write('data/cover_en.json', JSON.stringify({ name: 'x' }));
-    await runs(4);
-    expect(stdout).toContain('3 problem(s): 0 error(s), 3 warning(s)');
+    await runWith('3 problem(s): 0 error(s), 3 warning(s)');
 
     controller.abort();
     expect(await done).toBe(0);

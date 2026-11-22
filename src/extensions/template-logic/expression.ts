@@ -434,6 +434,33 @@ export class TemplateExpression {
   }
 
   /**
+   * Option names an `{{IMAGE …}}` value sets: the static keys of its
+   * object literal (`({ data: logo, width: 4 })` → `data`, `width`), also
+   * in both branches of `a ? b : c`, `a ?? b` and `a || b`.
+   */
+  imageOptionKeys(): string[] {
+    const keys: string[] = [];
+    const visit = (node: Node) => {
+      if (node.type === 'object') {
+        node.entries.forEach(({ key }) => {
+          if (key.type === 'lit') keys.push(String(key.value));
+        });
+      } else if (node.type === 'cond') {
+        visit(node.then);
+        visit(node.else);
+      } else if (
+        node.type === 'binary' &&
+        (node.op === '??' || node.op === '||')
+      ) {
+        visit(node.left);
+        visit(node.right);
+      }
+    };
+    visit(this.ast);
+    return keys;
+  }
+
+  /**
    * While parsing, the error points at the current token (or the end of
    * the source); the tokenizer passes its own range.
    */
