@@ -2,7 +2,6 @@ import fs from 'fs';
 import JSZip from 'jszip';
 import ArchiveJszip from '../../helper/archive/archive-jszip';
 import { PptPaths } from '../../helper/ppt-paths';
-import type { RootPresTemplate } from '../../interfaces/root-pres-template';
 import { removeUnreachableParts } from './prune';
 import { generatePptx } from './zip-writer';
 import { readText } from './zip-text';
@@ -51,6 +50,8 @@ type SelectSlides = (available: number[]) => Promise<DeckSlide[]> | DeckSlide[];
 /** Renders `slides` of a deck into a new deck (renderDeck's engine). */
 async function buildDeck(
   content: Buffer,
+  /** `content`, loaded: shared by the root and the source template. */
+  loaded: JSZip,
   data: TemplateData,
   renderOptions: RenderTemplateOptions,
   select: SelectSlides,
@@ -71,6 +72,10 @@ async function buildDeck(
   })
     .loadRoot(content)
     .load(content, 'deck');
+  // Loading a zip reads the whole file byte by byte (JSZip); the deck is
+  // loaded once, and each archive gets its own list of the same parts
+  usePreloaded(pres.rootTemplate.archive, loaded);
+  usePreloaded(pres.getTemplate('deck').archive, loaded);
 
   const available = await pres.getTemplate('deck').getAllSlideNumbers();
   const slides = await select(available);
@@ -117,6 +122,20 @@ async function buildDeck(
     throw error;
   }
 }
+
+/**
+ * Lets a not yet opened jszip archive use a copy of `zip` instead of
+ * loading its file again. The copy shares the parts, which JSZip never
+ * changes in place (zip.file() and zip.remove() replace or drop them).
+ */
+const usePreloaded = (archive: unknown, zip: JSZip): void => {
+  if (!(archive instanceof ArchiveJszip) || archive.archive) return;
+  const copy = new JSZip();
+  Object.keys(zip.files).forEach(
+    (name) => (copy.files[name] = zip.files[name]),
+  );
+  archive.archive = copy;
+};
 
 /** Whether a slide of the deck calls flow() (cheap text check). */
 const usesFlow = async (zip: JSZip, number: number): Promise<boolean> => {
@@ -166,17 +185,6 @@ const openCountDeck = (content: Buffer, zip: JSZip): CountDeck => {
 };
 
 /**
- * Media files of IMAGE tags are not written while counting: the count
- * needs the text only. Every picture "exists" already.
- */
-const countingTemplate = {
-  mediaDeduplicator: {
-    find: async (): Promise<string> => 'flow-count.png',
-    add: (): void => undefined,
-  },
-} as unknown as RootPresTemplate;
-
-/**
  * countFlowPages with the deck loaded already. Renders the slide by itself,
  * the way slide.modify() gets it in renderDeck (same slide XML, layout,
  * master and theme), without building a deck: the slide is rendered into
@@ -205,7 +213,8 @@ const flowPagesOf = async (
     await render(document, {
       targetArchive: deck.archive,
       targetPath: slidePath,
-      targetTemplate: countingTemplate,
+      // no pictures: they do not change where the text goes
+      countOnly: true,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -242,7 +251,7 @@ export const renderDeck = async (
   const content = await loadContent(pptx);
   const zip = await JSZip.loadAsync(content);
   const deck = openCountDeck(content, zip);
-  return buildDeck(content, data, renderOptions, async (available) => {
+  return buildDeck(content, zip, data, renderOptions, async (available) => {
     const result: DeckSlide[] = [];
     // The copies of a slide share the measurement of its lists
     const caches = new Map<number, FlowCache>();

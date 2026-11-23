@@ -6,6 +6,9 @@ import { generatePptx } from '../src/extensions/template-render/zip-writer';
 import { removeUnreachableParts } from '../src/extensions/template-render/prune';
 import { readText } from '../src/extensions/template-render/zip-text';
 import { checkPptxInvariants } from './helpers/pptx-invariants';
+import ArchiveJszip from '../src/helper/archive/archive-jszip';
+import { MediaDeduplicator } from '../src/helper/media-deduplicator';
+import * as images from '../src/extensions/template-logic/images';
 
 /*
  * What renderDeck does instead of Automizer's `cleanup` and JSZip's
@@ -223,5 +226,99 @@ test('the font folders are listed once per process', () => {
     expect(readdir.mock.calls.length).toBe(first);
   } finally {
     readdir.mockRestore();
+  }
+});
+
+describe('MediaDeduplicator hashes only pictures of the same size', () => {
+  const archiveWith = async (files: Record<string, Buffer>) => {
+    const zip = new JSZip();
+    Object.entries(files).forEach(([name, content]) =>
+      zip.file(`ppt/media/${name}`, content),
+    );
+    const archive = new ArchiveJszip(
+      await zip.generateAsync({ type: 'nodebuffer' }),
+      { mode: 'jszip' },
+    );
+    archive.archive = await JSZip.loadAsync(
+      await zip.generateAsync({ type: 'nodebuffer' }),
+    );
+    return archive;
+  };
+
+  test('finds identical files, reads no file of another size', async () => {
+    const archive = await archiveWith({
+      'a.png': Buffer.from('AAAA'),
+      'b.png': Buffer.from('BBBB'),
+      'c.png': Buffer.from('CCCCCCCC'),
+      'd.png': Buffer.from('AAAA'),
+    });
+    const read = jest.spyOn(archive, 'read');
+    const media = new MediaDeduplicator(archive);
+
+    expect(await media.find(Buffer.from('BBBB'))).toBe('b.png');
+    // the first of two identical files, as before
+    expect(await media.find(Buffer.from('AAAA'))).toBe('a.png');
+    expect(await media.find(Buffer.from('XXXX'))).toBeUndefined();
+    expect(read.mock.calls.map((c) => c[0]).sort()).toEqual([
+      'ppt/media/a.png',
+      'ppt/media/b.png',
+      'ppt/media/d.png',
+    ]);
+
+    // an added file is found; an existing identical one comes first
+    media.add(Buffer.from('NEW!'), 'new.png');
+    media.add(Buffer.from('CCCCCCCC'), 'copy.png');
+    expect(await media.find(Buffer.from('NEW!'))).toBe('new.png');
+    expect(await media.find(Buffer.from('CCCCCCCC'))).toBe('c.png');
+  });
+
+  test('without sizes it hashes every file up front', async () => {
+    const archive = await archiveWith({ 'a.png': Buffer.from('AAAA') });
+    // a part without a known size: e.g. another archive type
+    (
+      archive.archive.files['ppt/media/a.png'] as unknown as { _data: unknown }
+    )._data = undefined;
+    const media = new MediaDeduplicator(archive);
+    jest
+      .spyOn(archive, 'read')
+      .mockResolvedValue(Buffer.from('AAAA') as unknown as string);
+    expect(await media.find(Buffer.from('AAAA'))).toBe('a.png');
+  });
+});
+
+test('flow() trial renders and the count load no IMAGE pictures', async () => {
+  const template = await flowTemplate('template-render-image-template.pptx');
+  // the header box of the flow slide shows a picture
+  const zip = await JSZip.loadAsync(fs.readFileSync(template));
+  const slide = 'ppt/slides/slide2.xml';
+  zip.file(
+    slide,
+    (await zip.file(slide).async('string')).replace(
+      '{{LINK site}}',
+      '{{IMAGE photo}}',
+    ),
+  );
+  const data = {
+    items: Array.from({ length: 150 }, (_, i) => `Entry ${i + 1}`),
+    photo: fs.readFileSync(`${__dirname}/media/test.png`),
+  };
+  const loadImage = jest.spyOn(images, 'loadImage');
+  try {
+    const pptx = await renderDeck(
+      await zip.generateAsync({ type: 'nodebuffer' }),
+      data,
+      { fonts },
+    );
+    // once per slide of the output: 2 pages
+    expect(loadImage).toHaveBeenCalledTimes(2);
+    const out = await JSZip.loadAsync(pptx);
+    const media = parts(out).filter((n) => n.startsWith('ppt/media/'));
+    expect(media).toHaveLength(1);
+    // a picture the render adds is stored, as PowerPoint does
+    expect(methods(pptx).get(media[0])).toBe(0);
+    const { errors } = await checkPptxInvariants(pptx);
+    expect(errors).toEqual([]);
+  } finally {
+    loadImage.mockRestore();
   }
 });

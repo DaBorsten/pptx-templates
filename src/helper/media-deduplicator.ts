@@ -1,5 +1,5 @@
 import { createHash } from 'crypto';
-import IArchive from '../interfaces/iarchive';
+import IArchive, { ArchivedFile } from '../interfaces/iarchive';
 import { PptPaths } from './ppt-paths';
 
 /**
@@ -25,6 +25,19 @@ export class MediaDeduplicator {
    */
   private files = new Map<string, string>();
 
+  /**
+   * Files added after the existing files were indexed. Looked up after
+   * `files`, so an existing file wins as if it had been hashed first.
+   */
+  private late = new Map<string, string>();
+
+  /**
+   * Existing files not hashed yet, by size: only a file of the same size
+   * can be identical, so `find` hashes just those. Reading and hashing every
+   * picture of a large template took a noticeable share of each run.
+   */
+  private unhashed = new Map<number, ArchivedFile[]>();
+
   private indexed: Promise<void>;
 
   constructor(archive: IArchive) {
@@ -38,7 +51,13 @@ export class MediaDeduplicator {
    */
   async find(content: Buffer): Promise<string | undefined> {
     await this.indexExistingFiles();
-    return this.files.get(MediaDeduplicator.checksum(content));
+    const sameSize = this.unhashed.get(content.length);
+    if (sameSize) {
+      this.unhashed.delete(content.length);
+      for (const mediaFile of sameSize) await this.hash(mediaFile, this.files);
+    }
+    const checksum = MediaDeduplicator.checksum(content);
+    return this.files.get(checksum) ?? this.late.get(checksum);
   }
 
   /**
@@ -46,9 +65,40 @@ export class MediaDeduplicator {
    */
   add(content: Buffer, filename: string): void {
     const checksum = MediaDeduplicator.checksum(content);
-    if (!this.files.has(checksum)) {
-      this.files.set(checksum, filename);
+    const into = this.indexed ? this.late : this.files;
+    if (!into.has(checksum)) {
+      into.set(checksum, filename);
     }
+  }
+
+  private async hash(
+    mediaFile: ArchivedFile,
+    into: Map<string, string>,
+  ): Promise<void> {
+    // hashed late: a part removed in between is no candidate any more
+    if (!this.archive.fileExists(mediaFile.name)) return;
+    const content = (await this.archive.read(
+      mediaFile.name,
+      'nodebuffer',
+    )) as Buffer;
+    const checksum = MediaDeduplicator.checksum(content);
+    if (!into.has(checksum)) {
+      into.set(checksum, mediaFile.relativePath);
+    }
+  }
+
+  /**
+   * Size of a part of a jszip archive without reading it, or undefined
+   * (other archive types, or not known).
+   */
+  private sizeOf(file: string): number | undefined {
+    const zip = (this.archive as { archive?: unknown }).archive as
+      { files?: Record<string, { _data?: unknown }> } | undefined;
+    const data = zip?.files?.[file]?._data as
+      { uncompressedSize?: unknown } | Uint8Array | undefined;
+    if (data instanceof Uint8Array) return data.byteLength;
+    const size = (data as { uncompressedSize?: unknown })?.uncompressedSize;
+    return typeof size === 'number' && size >= 0 ? size : undefined;
   }
 
   /**
@@ -63,21 +113,23 @@ export class MediaDeduplicator {
   }
 
   private async readExistingFiles(): Promise<void> {
-    const mediaFiles = await this.archive.folder(PptPaths.mediaDir);
-
-    for (const mediaFile of mediaFiles) {
+    const mediaFiles = (await this.archive.folder(PptPaths.mediaDir)).filter(
       // Directory entries have no filename to relate to
-      if (!mediaFile.relativePath || mediaFile.relativePath.endsWith('/')) {
-        continue;
-      }
+      (mediaFile) =>
+        mediaFile.relativePath && !mediaFile.relativePath.endsWith('/'),
+    );
 
-      const content = (await this.archive.read(
-        mediaFile.name,
-        'nodebuffer',
-      )) as Buffer;
-
-      this.add(content, mediaFile.relativePath);
+    const sizes = mediaFiles.map((mediaFile) => this.sizeOf(mediaFile.name));
+    if (sizes.some((size) => size === undefined)) {
+      for (const mediaFile of mediaFiles)
+        await this.hash(mediaFile, this.files);
+      return;
     }
+    mediaFiles.forEach((mediaFile, i) => {
+      const bucket = this.unhashed.get(sizes[i]) ?? [];
+      bucket.push(mediaFile);
+      this.unhashed.set(sizes[i], bucket);
+    });
   }
 
   static checksum(content: Buffer): string {

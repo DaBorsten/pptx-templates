@@ -33,6 +33,12 @@ export type RenderContext = {
   images?: () => Promise<ImageTarget | undefined>;
   /** Layout, master and theme of the slide (text measurement of flow()). */
   styles?: () => Promise<SlideStyles | undefined>;
+  /**
+   * The render only counts the slides of flow() lists (countFlowPages) and
+   * is thrown away: IMAGE values are evaluated, but no picture is loaded
+   * or placed. Pictures do not change where the text goes.
+   */
+  countOnly?: boolean;
 };
 
 /**
@@ -260,6 +266,11 @@ export class TemplateRenderer {
   private readonly flowLimits = new Map<XmlElement, Expr>();
   /** flow(list, n, options): the options per box, as an expression. */
   private readonly flowOptions = new Map<XmlElement, Expr>();
+  /** flow(): each box tokenized once, for all its measuring copies. */
+  private readonly copySources = new Map<
+    XmlElement,
+    { tokens: BodyTokens; blocks: Block<TextToken>[] }
+  >();
   private currentBody?: XmlElement;
   /** Rendering an alt text (renderAltTexts). */
   private inAltText = false;
@@ -548,7 +559,20 @@ export class TemplateRenderer {
     body: XmlElement,
     entries: unknown[],
   ): Promise<XmlElement[]> {
-    const copy = cloneXml(body, true) as XmlElement;
+    // Tokens and blocks of the box are only read while writing, so one
+    // tokenized copy serves every entry. Each render writes into a body
+    // with the box's properties and a paragraph for writeBody to replace.
+    let source = this.copySources.get(body);
+    if (!source) {
+      const tokens = this.tokenizeBody(cloneXml(body, true) as XmlElement);
+      source = { tokens, blocks: this.parse(tokens.tokens, textControl) };
+      this.copySources.set(body, source);
+    }
+    const copy = cloneXml(body, false) as XmlElement;
+    this.childElements(body)
+      .filter((child) => child.tagName !== 'a:p')
+      .forEach((child) => copy.appendChild(cloneXml(child, true)));
+    copy.appendChild(body.ownerDocument.createElement('a:p'));
     const saved = {
       override: this.flowOverride,
       current: this.currentBody,
@@ -558,13 +582,7 @@ export class TemplateRenderer {
     this.flowOverride = () => entries;
     this.currentBody = copy;
     try {
-      const tokens = this.tokenizeBody(copy);
-      await this.writeBody(
-        copy,
-        tokens,
-        this.parse(tokens.tokens, textControl),
-        this.root,
-      );
+      await this.writeBody(copy, source.tokens, source.blocks, this.root);
       return this.childElements(copy, 'a:p');
     } finally {
       this.pendingImages.delete(copy);
@@ -1158,6 +1176,8 @@ export class TemplateRenderer {
       case 'image': {
         const value = await evaluate(directive.expr);
         if (value === null || value === undefined || value === '') break;
+        // a measuring copy (flowOverride) never places its pictures
+        if (this.flowOverride || this.context.countOnly) break;
         const image = await this.value(tag, async () => {
           if (body.tagName !== 'p:txBody') {
             throw new Error('IMAGE is not supported inside table cells');
@@ -1269,7 +1289,7 @@ export class TemplateRenderer {
         this.currentBody = saved.body;
         this.inAltText = saved.altText;
       }
-      if (!images.length) continue;
+      if (!images.length || this.context.countOnly) continue;
       const { tag, value } = images[0];
       if (images.length > 1) {
         const error = new Error(

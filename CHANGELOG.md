@@ -24,7 +24,17 @@ semver, with the pre-1.0 convention that **breaking changes bump the minor**.
     does not use is still dropped.
   - `renderDeck` packs the .pptx with Node's zlib instead of JSZip's
     JavaScript deflate. Stored pictures stay stored, as PowerPoint saves
-    them (JSZip deflated them for about 1 % less).
+    them, and so do the pictures `{{IMAGE}}` adds (JSZip deflated them for
+    about 1 % less).
+  - `renderDeck` loads the template once instead of three times (JSZip
+    reads the whole file byte by byte on every load).
+  - Identical pictures are found by comparing only pictures of the same
+    size: each run read and hashed every picture of the template before.
+    With 3 MB of pictures in the template, a deck takes 0.1 instead of
+    0.5 seconds.
+  - `flow()` tokenizes a box once for all the entries it measures, and
+    neither its trial renders nor counting the slides load `{{IMAGE}}`
+    pictures.
 
 ## [0.3.9] - 2026-11-22
 

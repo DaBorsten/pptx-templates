@@ -9,8 +9,10 @@ import JSZip from 'jszip';
  * small XML parts, so most of that time is overhead.
  *
  * Parts taken over unchanged from the template keep their compressed bytes,
- * as with JSZip; stored pictures and other binary parts also stay stored
- * (JSZip deflated them, for about 1 % less). No ZIP64: a deck needs less
+ * as with JSZip; stored pictures and other binary parts also stay stored,
+ * and pictures the render adds (JPEG, PNG, GIF) are stored as PowerPoint
+ * does (JSZip deflated them, for about 1 % less, at most of the time it
+ * took to pack a deck with photos). No ZIP64: a deck needs less
  * than 4 GB and 65535 parts; above that, JSZip packs it.
  */
 export const generatePptx = async (zip: JSZip): Promise<Buffer> => {
@@ -117,6 +119,9 @@ const STORE = '\x00\x00';
 /** Parts that deflate well. */
 const XML = /\.(xml|rels|vml)$/i;
 
+/** Formats that are compressed already: deflate hardly shrinks them. */
+const COMPRESSED = /\.(jpe?g|png|gif|webp|mp4|m4v|mov|mp3|m4a|zip)$/i;
+
 const bufferOf = (data: Uint8Array): Buffer =>
   Buffer.from(data.buffer, data.byteOffset, data.byteLength);
 
@@ -152,10 +157,12 @@ const entryOf = async (file: JSZip.JSZipObject): Promise<Entry> => {
       : typeof data === 'string' && !binary(file)
         ? Buffer.from(data, 'utf8')
         : await file.async('nodebuffer');
+  // pictures and videos added by the render (IMAGE): already compressed
+  const stored = COMPRESSED.test(file.name);
   return {
     name,
-    data: zlib.deflateRawSync(content),
-    method: 8,
+    data: stored ? content : zlib.deflateRawSync(content),
+    method: stored ? 0 : 8,
     crc: crc32(content),
     size: content.length,
     date,
