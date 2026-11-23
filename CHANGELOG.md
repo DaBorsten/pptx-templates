@@ -6,6 +6,26 @@ semver, with the pre-1.0 convention that **breaking changes bump the minor**.
 
 ## [Unreleased]
 
+### Changed
+
+- `renderDeck` is more than twice as fast, with the same slides: a deck
+  of 8 template slides, three of them with `flow()` lists that make 2 to 4
+  slides each, takes about 0.1 instead of 0.23 seconds.
+  - `renderDeck` and `countFlowPages` count the slides a `flow()` slide
+    needs by rendering that slide by itself, instead of building a whole
+    deck for each such slide.
+  - The system font folders are listed once per process, not on every
+    render with `flow()` (on Windows a `stat` for each of hundreds of
+    fonts).
+  - `renderDeck` drops the parts no relationship reaches any more (the
+    template's own slides with their notes, charts, embeddings and
+    pictures) from the `.rels` parts, instead of parsing every slide once
+    more for Automizer's `cleanup`. A picture whose relationship the slide
+    does not use is still dropped.
+  - `renderDeck` packs the .pptx with Node's zlib instead of JSZip's
+    JavaScript deflate. Stored pictures stay stored, as PowerPoint saves
+    them (JSZip deflated them for about 1 % less).
+
 ## [0.3.9] - 2026-11-22
 
 ### Added

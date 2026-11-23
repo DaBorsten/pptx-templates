@@ -7,6 +7,7 @@ import JSZip from 'jszip';
 import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
 import { XmlDocument, XmlElement } from '../../types/xml-types';
 import { PptPaths } from '../../helper/ppt-paths';
+import { readText } from '../template-render/zip-text';
 import {
   fixSmartQuotes,
   isTableMarker,
@@ -88,7 +89,7 @@ export const notesPartOf = async (
   zip: JSZip,
   slide: number,
 ): Promise<string | undefined> => {
-  const rels = await zip.file(PptPaths.slideRels(slide))?.async('string');
+  const rels = await readText(zip, PptPaths.slideRels(slide));
   if (!rels) return undefined;
   const rel = elements(parseXml(rels), 'Relationship').find(
     (r) => r.getAttribute('Type') === NOTES_REL,
@@ -107,8 +108,9 @@ export const hideSlideConditions = async (
   options: RenderTemplateOptions = {},
 ): Promise<HideSlideCondition[]> => {
   const part = await notesPartOf(zip, slide);
-  const xml = part && (await zip.file(part)?.async('string'));
-  if (!xml) return [];
+  const xml = part && (await readText(zip, part));
+  // Cheap pre-check on the text, runs joined; the keyword is case-insensitive
+  if (!xml || !/hide/i.test(xml.replace(/<[^>]*>/g, ''))) return [];
   const syntax = tagSyntax(options);
   return elements(parseXml(xml), 'a:p').flatMap((p) =>
     hideTagsIn(paragraphText(p), syntax, options),
@@ -264,7 +266,7 @@ export const stripHideSlideTagsInDeck = async (
     /^ppt\/notesSlides\/notesSlide\d+\.xml$/.test(name),
   );
   for (const part of parts) {
-    const xml = await zip.file(part).async('string');
+    const xml = await readText(zip, part);
     // Cheap pre-check; the keyword is case-insensitive
     if (!/hide/i.test(xml)) continue;
     const doc = parseXml(xml);

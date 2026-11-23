@@ -93,6 +93,21 @@ const listFontFiles = (entry: string, depth = 0): string[] => {
  */
 const infoCache = new Map<string, FontFaceInfo[]>();
 const faceCache = new Map<string, FontFace>();
+/**
+ * The font files of a folder. Listing the system font folders takes a
+ * stat() per file (hundreds on Windows); every render with flow() needs the
+ * list, so it is read once per process.
+ */
+const listCache = new Map<string, string[]>();
+
+const listFontFilesCached = (entry: string): string[] => {
+  let files = listCache.get(entry);
+  if (!files) {
+    files = listFontFiles(entry);
+    listCache.set(entry, files);
+  }
+  return files;
+};
 
 const infoOf = (file: string): FontFaceInfo[] => {
   let info = infoCache.get(file);
@@ -139,7 +154,7 @@ export class FontRegistry {
         ...(this.system ? systemFontFolders() : []),
       ];
       this.index = entries
-        .flatMap((entry) => listFontFiles(entry))
+        .flatMap((entry) => listFontFilesCached(entry))
         .flatMap(infoOf);
     }
     return this.index;
