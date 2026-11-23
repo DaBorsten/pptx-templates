@@ -10,6 +10,7 @@ import {
 import IArchive, { ArchivedFile } from '../../interfaces/iarchive';
 import { XmlDocument } from '../../types/xml-types';
 import path from 'path';
+import { readFast, rememberWritten } from './jszip-fast-read';
 
 export default class ArchiveJszip extends Archive implements IArchive {
   archive: JSZip;
@@ -82,12 +83,17 @@ export default class ArchiveJszip extends Archive implements IArchive {
       }
     }
 
-    return this.archive.files[file].async(type || 'string');
+    const object = this.archive.files[file];
+    // without JSZip's pipeline where the result is the same
+    const fast = readFast(object, type || 'string');
+    if (fast !== undefined) return fast;
+    return object.async(type || 'string');
   }
 
   async write(file: string, data: string | Buffer): Promise<this> {
     await this.ensureOpen();
     this.archive.file(file, data);
+    rememberWritten(this.archive.files[file], data);
     return this;
   }
 

@@ -1,5 +1,6 @@
 import { log } from '../helper/logger';
 import { XmlHelper } from '../helper/xml-helper';
+import { elementsByTagName } from '../helper/xml-find';
 import { SlidePlaceholder } from '../types/types';
 import { XmlDocument, XmlElement } from '../types/xml-types';
 import type HasShapes from './has-shapes';
@@ -48,8 +49,8 @@ export class PlaceholderNormalizer {
       this.host.targetPath,
     );
     const placeholderTypes: SlidePlaceholder[] = [];
-    const placeholders = xml.getElementsByTagName('p:ph');
-    XmlHelper.modifyCollection(placeholders, (placeholder: XmlElement) => {
+    const placeholders = elementsByTagName(xml, 'p:ph');
+    placeholders.forEach((placeholder: XmlElement) => {
       placeholderTypes.push({
         type: placeholder.getAttribute('type'),
         id: placeholder.getAttribute('id'),
@@ -68,9 +69,9 @@ export class PlaceholderNormalizer {
     xml: XmlDocument,
     sourcePlaceholderTypes: SlidePlaceholder[],
   ): void {
-    const placeholders = xml.getElementsByTagName('p:ph');
+    const placeholders = elementsByTagName(xml, 'p:ph');
     const usedTypes: Record<string, number> = {};
-    XmlHelper.modifyCollection(placeholders, (placeholder: XmlElement) => {
+    placeholders.forEach((placeholder: XmlElement) => {
       const type = placeholder.getAttribute('type');
       usedTypes[type] = usedTypes[type] || 0;
       usedTypes[type]++;
@@ -107,8 +108,8 @@ export class PlaceholderNormalizer {
     xml: XmlDocument,
     sourcePlaceholderTypes: SlidePlaceholder[],
   ): void {
-    const placeholders = xml.getElementsByTagName('p:ph');
-    XmlHelper.modifyCollection(placeholders, (placeholder: XmlElement) => {
+    const placeholders = elementsByTagName(xml, 'p:ph');
+    placeholders.forEach((placeholder: XmlElement) => {
       const usedType = placeholder.getAttribute('type');
       const existingPlaceholder = sourcePlaceholderTypes.find(
         (sourcePlaceholder) => sourcePlaceholder.type === usedType,
@@ -124,8 +125,31 @@ export class PlaceholderNormalizer {
    * Parents will be removed only if they become empty AND are NOT `p:nvPr`.
    */
   private removeUnsupportedTags(xml: XmlDocument): void {
-    this.host.unsupportedTags.forEach((tag) => {
-      const drop = XmlHelper.collectionToArray(xml.getElementsByTagName(tag));
+    // One walk for all tags instead of a getElementsByTagName per tag
+    // (each walks the whole slide). Document order, as there.
+    const found = new Map<string, XmlElement[]>(
+      this.host.unsupportedTags.map((tag): [string, XmlElement[]] => [tag, []]),
+    );
+    const stack: XmlElement[] = [];
+    for (let n = xml.lastChild; n; n = n.previousSibling) {
+      if (n.nodeType === 1) stack.push(n as XmlElement);
+    }
+    while (stack.length) {
+      const el = stack.pop();
+      found.get(el.tagName)?.push(el);
+      for (let n = el.lastChild; n; n = n.previousSibling) {
+        if (n.nodeType === 1) stack.push(n as XmlElement);
+      }
+    }
+    // still in the document: a tag removed before can have taken it along
+    const attached = (el: XmlElement) => {
+      let n: unknown = el;
+      while (n && n !== xml) n = (n as XmlElement).parentNode;
+      return !!n;
+    };
+
+    this.host.unsupportedTags.forEach((tag, i) => {
+      const drop = i === 0 ? found.get(tag) : found.get(tag).filter(attached);
       if (drop.length > 0) {
         log.debug('Cleaning unsupported tag ' + tag);
 

@@ -4,7 +4,8 @@
  */
 import fs from 'fs';
 import JSZip from 'jszip';
-import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
+import { DOMParser } from '@xmldom/xmldom';
+import { serializeXml } from '../../helper/xml-serializer';
 import { XmlDocument, XmlElement } from '../../types/xml-types';
 import { PptPaths } from '../../helper/ppt-paths';
 import { readText } from '../template-render/zip-text';
@@ -271,12 +272,7 @@ export const stripHideSlideTagsInDeck = async (
     if (!/hide/i.test(xml)) continue;
     const doc = parseXml(xml);
     if (stripHideSlideTags(doc, options)) {
-      zip.file(
-        part,
-        new XMLSerializer().serializeToString(
-          doc as unknown as Parameters<XMLSerializer['serializeToString']>[0],
-        ),
-      );
+      zip.file(part, serializeXml(doc));
     }
   }
 };

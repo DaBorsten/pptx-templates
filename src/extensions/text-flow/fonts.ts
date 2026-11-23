@@ -134,6 +134,7 @@ const faceOf = (info: FontFaceInfo): FontFace => {
 
 /** Finds the font file for a typeface name, bold and italic. */
 export class FontRegistry {
+  private ownIndex?: FontFaceInfo[];
   private index?: FontFaceInfo[];
   private readonly resolved = new Map<string, FontFace>();
   private readonly warned = new Set<string>();
@@ -147,16 +148,24 @@ export class FontRegistry {
     private readonly system = true,
   ) {}
 
+  /** The faces of `folders` only. */
+  private ownFaces(): FontFaceInfo[] {
+    this.ownIndex ??= this.folders
+      .flatMap((entry) => listFontFilesCached(entry))
+      .flatMap(infoOf);
+    return this.ownIndex;
+  }
+
+  /** The faces of `folders`, then those of the system font folders. */
   private faces(): FontFaceInfo[] {
-    if (!this.index) {
-      const entries = [
-        ...this.folders,
-        ...(this.system ? systemFontFolders() : []),
-      ];
-      this.index = entries
-        .flatMap((entry) => listFontFilesCached(entry))
-        .flatMap(infoOf);
-    }
+    this.index ??= this.system
+      ? [
+          ...this.ownFaces(),
+          ...systemFontFolders()
+            .flatMap((entry) => listFontFilesCached(entry))
+            .flatMap(infoOf),
+        ]
+      : this.ownFaces();
     return this.index;
   }
 
@@ -165,11 +174,19 @@ export class FontRegistry {
     bold: boolean,
     italic: boolean,
   ): FontFaceInfo | undefined {
-    const candidates = this.faces().filter((f) => f.families.includes(family));
-    if (!candidates.length) return undefined;
     const score = (f: FontFaceInfo) =>
       (f.bold === bold ? 2 : 0) + (f.italic === italic ? 1 : 0);
-    return candidates.reduce((best, f) => (score(f) > score(best) ? f : best));
+    const best = (faces: FontFaceInfo[]) => {
+      const candidates = faces.filter((f) => f.families.includes(family));
+      if (!candidates.length) return undefined;
+      return candidates.reduce((b, f) => (score(f) > score(b) ? f : b));
+    };
+    // The system fonts come after `folders` and only replace a face that
+    // does not match exactly: reading them (hundreds of files on Windows)
+    // is needed only then
+    const own = best(this.ownFaces());
+    if (own && score(own) === 3) return own;
+    return best(this.faces());
   }
 
   /** The face to measure a typeface with; never undefined (falls back). */
@@ -189,7 +206,7 @@ export class FontRegistry {
         info = this.find(fallback, bold, italic);
         if (info) break;
       }
-      info ??= this.faces()[0];
+      info ??= this.ownFaces()[0] ?? this.faces()[0];
       if (!info) {
         throw new Error(
           `flow(): no font to measure "${typeface}" with. Pass the font ` +

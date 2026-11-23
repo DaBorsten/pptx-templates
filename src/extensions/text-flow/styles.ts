@@ -1,6 +1,7 @@
 import { XmlDocument, XmlElement } from '../../types/xml-types';
 import { XmlHelper } from '../../helper/xml-helper';
 import { FontRegistry } from './fonts';
+import type { FontFace } from './font-file';
 import { LayoutParagraph, LayoutRun, Spacing } from './layout';
 
 const EMU_PER_PT = 12700;
@@ -41,25 +42,36 @@ const children = (
   }
   return result;
 };
-const child = (parent: XmlElement | undefined, tagName: string) =>
-  children(parent, tagName)[0];
+const child = (
+  parent: XmlElement | undefined,
+  tagName: string,
+): XmlElement | undefined => {
+  for (let n = parent?.firstChild; n; n = n.nextSibling) {
+    if (n.nodeType === 1 && (n as XmlElement).tagName === tagName) {
+      return n as XmlElement;
+    }
+  }
+  return undefined;
+};
 const path = (parent: XmlElement | undefined, ...tags: string[]) =>
   tags.reduce<XmlElement | undefined>((el, t) => child(el, t), parent);
 
+// getAttribute is null for a missing attribute: one lookup, not two
 const numberAttr = (
   el: XmlElement | undefined,
   name: string,
 ): number | undefined => {
-  if (!el?.hasAttribute(name)) return undefined;
-  const value = Number(el.getAttribute(name));
+  const attr = el?.getAttribute(name);
+  if (attr === null || attr === undefined) return undefined;
+  const value = Number(attr);
   return Number.isFinite(value) ? value : undefined;
 };
 const boolAttr = (
   el: XmlElement | undefined,
   name: string,
 ): boolean | undefined => {
-  if (!el?.hasAttribute(name)) return undefined;
-  const value = el.getAttribute(name);
+  const value = el?.getAttribute(name);
+  if (value === null || value === undefined) return undefined;
   return value === '1' || value === 'true';
 };
 
@@ -246,39 +258,84 @@ export class ShapeStyles {
     return name;
   }
 
+  /** Faces by run font, bold and italic: the same for most runs of a box. */
+  private readonly faces = new Map<string, FontFace>();
+
+  private faceOf(
+    latin: string | undefined,
+    bold: boolean,
+    italic: boolean,
+  ): FontFace {
+    const key = `${latin ?? ''}|${bold}|${italic}`;
+    let face = this.faces.get(key);
+    if (!face) {
+      face = this.fonts.face(this.typeface(latin), bold, italic);
+      this.faces.set(key, face);
+    }
+    return face;
+  }
+
+  /** The list styles of each level; they are the same for every paragraph. */
+  private readonly levels = new Map<number, XmlElement[]>();
+
+  private levelSources(level: number): XmlElement[] {
+    let sources = this.levels.get(level);
+    if (!sources) {
+      sources = this.lists().flatMap((l) => levelStyles(l, level));
+      this.levels.set(level, sources);
+    }
+    return sources;
+  }
+
   /** Paragraphs ready for layout. */
   paragraphs(paragraphs: XmlElement[]): LayoutParagraph[] {
     const { fontScale, lineReduction } = this.autofit();
-    const lists = this.lists();
 
     return paragraphs.map((p) => {
       const pPr = child(p, 'a:pPr');
       const level = numberAttr(pPr, 'lvl') ?? 0;
-      const sources = [
-        pPr,
-        ...lists.flatMap((l) => levelStyles(l, level)),
-      ].filter(Boolean);
-      const attr = (name: string) =>
-        sources.map((s) => numberAttr(s, name)).find((v) => v !== undefined);
-      const first = (tagName: string) =>
-        sources.map((s) => child(s, tagName)).find(Boolean);
+      const levelSources = this.levelSources(level);
+      const sources = pPr ? [pPr, ...levelSources] : levelSources;
+      const attr = (name: string) => {
+        for (const s of sources) {
+          const v = numberAttr(s, name);
+          if (v !== undefined) return v;
+        }
+        return undefined;
+      };
+      const first = (tagName: string) => {
+        for (const s of sources) {
+          const el = child(s, tagName);
+          if (el) return el;
+        }
+        return undefined;
+      };
       const defRPrs = sources.map((s) => child(s, 'a:defRPr')).filter(Boolean);
 
       const runProps = (rPr: XmlElement | undefined) => {
-        const chain = [rPr, ...defRPrs].filter(Boolean);
-        const value = <T>(get: (el: XmlElement) => T | undefined) =>
-          chain.map(get).find((v) => v !== undefined);
-        const size = (value((el) => numberAttr(el, 'sz')) ?? 1800) / 100;
-        const bold = value((el) => boolAttr(el, 'b')) ?? false;
-        const italic = value((el) => boolAttr(el, 'i')) ?? false;
-        const latin = value(
-          (el) => child(el, 'a:latin')?.getAttribute('typeface') || undefined,
-        );
+        const chain = rPr ? [rPr, ...defRPrs] : defRPrs;
+        // the first element of the chain that sets each property
+        let size: number | undefined;
+        let bold: boolean | undefined;
+        let italic: boolean | undefined;
+        let latin: string | undefined;
+        let spc: number | undefined;
+        let cap: string | undefined;
+        for (const el of chain) {
+          size ??= numberAttr(el, 'sz');
+          bold ??= boolAttr(el, 'b');
+          italic ??= boolAttr(el, 'i');
+          latin ??= child(el, 'a:latin')?.getAttribute('typeface') || undefined;
+          spc ??= numberAttr(el, 'spc');
+          cap ??= el.getAttribute('cap') || undefined;
+        }
+        bold ??= false;
+        italic ??= false;
         return {
-          size: size * fontScale,
-          face: this.fonts.face(this.typeface(latin), bold, italic),
-          letterSpacing: (value((el) => numberAttr(el, 'spc')) ?? 0) / 100,
-          caps: value((el) => el.getAttribute('cap') || undefined) === 'all',
+          size: ((size ?? 1800) / 100) * fontScale,
+          face: this.faceOf(latin, bold, italic),
+          letterSpacing: (spc ?? 0) / 100,
+          caps: cap === 'all',
         };
       };
 

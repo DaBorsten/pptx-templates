@@ -40,6 +40,9 @@ export class MediaDeduplicator {
 
   private indexed: Promise<void>;
 
+  /** The last picture `find` did not find, with its checksum. */
+  private lookedUp?: { content: Buffer; length: number; checksum: string };
+
   constructor(archive: IArchive) {
     this.archive = archive;
   }
@@ -57,14 +60,18 @@ export class MediaDeduplicator {
       for (const mediaFile of sameSize) await this.hash(mediaFile, this.files);
     }
     const checksum = MediaDeduplicator.checksum(content);
-    return this.files.get(checksum) ?? this.late.get(checksum);
+    const found = this.files.get(checksum) ?? this.late.get(checksum);
+    this.lookedUp = found
+      ? undefined
+      : { content, length: content.length, checksum };
+    return found;
   }
 
   /**
    * Add a media file that has been copied into the output archive.
    */
   add(content: Buffer, filename: string): void {
-    const checksum = MediaDeduplicator.checksum(content);
+    const checksum = this.checksumOf(content);
     const into = this.indexed ? this.late : this.files;
     if (!into.has(checksum)) {
       into.set(checksum, filename);
@@ -134,5 +141,18 @@ export class MediaDeduplicator {
 
   static checksum(content: Buffer): string {
     return createHash('sha1').update(content).digest('hex');
+  }
+
+  /**
+   * The checksum of a picture `find` did not find: `add` usually gets the
+   * same buffer right after, which was hashed a second time.
+   */
+  private checksumOf(content: Buffer): string {
+    const looked = this.lookedUp;
+    this.lookedUp = undefined;
+    if (looked?.content === content && looked.length === content.length) {
+      return looked.checksum;
+    }
+    return MediaDeduplicator.checksum(content);
   }
 }

@@ -1,4 +1,8 @@
-import { XMLSerializer } from '@xmldom/xmldom';
+import { serializeXml } from '../../helper/xml-serializer';
+import {
+  elementsByTagName,
+  firstElementByTagName,
+} from '../../helper/xml-find';
 import { XmlDocument, XmlElement } from '../../types/xml-types';
 import { XmlHelper } from '../../helper/xml-helper';
 import { XmlRelationshipHelper } from '../../helper/xml-relationship-helper';
@@ -379,9 +383,7 @@ export class TemplateRenderer {
     targets
       .filter((t) => t.tagName === 'p:txBody' && this.containsTag(t))
       .forEach((body) => {
-        const text = XmlHelper.collectionToArray(
-          body.getElementsByTagName('a:t'),
-        )
+        const text = elementsByTagName(body, 'a:t')
           .map((t) => t.textContent)
           .join('');
         const keys = new Set<string>();
@@ -603,7 +605,7 @@ export class TemplateRenderer {
    */
   private flowMeasureKey(body: XmlElement): string | undefined {
     if (this.options.errorHandler) return undefined;
-    const text = XmlHelper.collectionToArray(body.getElementsByTagName('a:t'))
+    const text = elementsByTagName(body, 'a:t')
       .map((t) => t.textContent)
       .join('');
     for (const match of text.matchAll(this.tagPattern)) {
@@ -627,7 +629,7 @@ export class TemplateRenderer {
     const cNvPr = childOf(childOf(shape, 'p:nvSpPr'), 'p:cNvPr');
     cNvPr?.removeAttribute('id');
     cNvPr?.removeAttribute('name');
-    return new XMLSerializer().serializeToString(shape);
+    return serializeXml(shape);
   }
 
   /** Shape text bodies and tables, in document order. */
@@ -652,26 +654,22 @@ export class TemplateRenderer {
 
   /** ALIAS definitions apply everywhere, so collect them up front. */
   private collectAliases(element: XmlDocument | XmlElement): void {
-    XmlHelper.collectionToArray(element.getElementsByTagName('a:p')).forEach(
-      (paragraph) => {
-        const text = XmlHelper.collectionToArray(
-          paragraph.getElementsByTagName('a:t'),
-        )
-          .map((t) => t.textContent)
-          .join('');
-        for (const match of text.matchAll(this.tagPattern)) {
-          let command: ParsedCommand;
-          try {
-            command = parseCommand(match[1], match[0]);
-          } catch {
-            continue; // reported where the tag is rendered
-          }
-          if (command.type === 'ALIAS') {
-            this.aliases.set(command.name, command.code);
-          }
+    elementsByTagName(element, 'a:p').forEach((paragraph) => {
+      const text = elementsByTagName(paragraph, 'a:t')
+        .map((t) => t.textContent)
+        .join('');
+      for (const match of text.matchAll(this.tagPattern)) {
+        let command: ParsedCommand;
+        try {
+          command = parseCommand(match[1], match[0]);
+        } catch {
+          continue; // reported where the tag is rendered
         }
-      },
-    );
+        if (command.type === 'ALIAS') {
+          this.aliases.set(command.name, command.code);
+        }
+      }
+    });
   }
 
   /*
@@ -1223,9 +1221,7 @@ export class TemplateRenderer {
         return undefined;
       }
     };
-    return XmlHelper.collectionToArray(
-      element.getElementsByTagName('p:cNvPr'),
-    ).filter((cNvPr) =>
+    return elementsByTagName(element, 'p:cNvPr').filter((cNvPr) =>
       isAltTextTemplate(
         cNvPr.getAttribute('descr') ?? '',
         this.tagPattern,
@@ -1354,7 +1350,7 @@ export class TemplateRenderer {
     if (!images?.length) return;
     this.pendingImages.delete(body);
     const shape = body.parentNode as XmlElement;
-    const text = XmlHelper.collectionToArray(body.getElementsByTagName('a:t'))
+    const text = elementsByTagName(body, 'a:t')
       .map((t) => t.textContent)
       .join('');
     try {
@@ -1397,9 +1393,25 @@ export class TemplateRenderer {
         nodes.push(br as unknown as XmlElement);
       }
       if (line === '') return;
-      const run = cloneXml(template, true) as XmlElement;
-      const t = run.getElementsByTagName('a:t')[0];
-      while (t.firstChild) t.removeChild(t.firstChild);
+      // the template's own text is not copied: <a:t> gets the new text
+      const run = cloneXml(template, false) as XmlElement;
+      let t: XmlElement | undefined;
+      for (let child = template.firstChild; child; child = child.nextSibling) {
+        const isText =
+          !t && child.nodeType === 1 && (child as XmlElement).tagName === 'a:t';
+        const copy = cloneXml(child, !isText) as XmlElement;
+        if (isText) t = copy;
+        run.appendChild(copy);
+      }
+      if (!t) {
+        // no <a:t> of its own: as before (a nested one, or the error)
+        const copy = cloneXml(template, true) as XmlElement;
+        t = copy.getElementsByTagName('a:t')[0];
+        while (t.firstChild) t.removeChild(t.firstChild);
+        t.appendChild(doc.createTextNode(XmlHelper.sanitizeText(line)));
+        nodes.push(copy);
+        return;
+      }
       t.appendChild(doc.createTextNode(XmlHelper.sanitizeText(line)));
       nodes.push(run);
     });
@@ -1663,6 +1675,6 @@ export class TemplateRenderer {
   }
 
   private runText(run: XmlElement): string {
-    return run.getElementsByTagName('a:t')[0]?.textContent ?? '';
+    return firstElementByTagName(run, 'a:t')?.textContent ?? '';
   }
 }

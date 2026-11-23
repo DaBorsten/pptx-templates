@@ -1,5 +1,6 @@
 import zlib from 'zlib';
 import JSZip from 'jszip';
+import { readFast } from '../../helper/archive/jszip-fast-read';
 
 /**
  * Packs a JSZip into a .pptx with Node's zlib: the job of
@@ -21,8 +22,10 @@ export const generatePptx = async (zip: JSZip): Promise<Buffer> => {
   const first = names.indexOf('[Content_Types].xml');
   if (first > 0) names.unshift(...names.splice(first, 1));
 
-  const entries: Entry[] = [];
-  for (const name of names) entries.push(await entryOf(zip.files[name]));
+  // all at once: deflating runs on the thread pool, several parts at a time
+  const entries = await Promise.all(
+    names.map((name) => entryOf(zip.files[name])),
+  );
 
   const size = entries.reduce(
     (sum, e) => sum + 30 + e.name.length + e.data.length,
@@ -156,18 +159,26 @@ const entryOf = async (file: JSZip.JSZipObject): Promise<Entry> => {
       ? bufferOf(data.compressedContent)
       : typeof data === 'string' && !binary(file)
         ? Buffer.from(data, 'utf8')
-        : await file.async('nodebuffer');
+        : ((readFast(file, 'nodebuffer', false) as Buffer | undefined) ??
+          (await file.async('nodebuffer')));
   // pictures and videos added by the render (IMAGE): already compressed
   const stored = COMPRESSED.test(file.name);
   return {
     name,
-    data: stored ? content : zlib.deflateRawSync(content),
+    data: stored ? content : await deflateRaw(content),
     method: stored ? 0 : 8,
     crc: crc32(content),
     size: content.length,
     date,
   };
 };
+
+const deflateRaw = (content: Buffer): Promise<Buffer> =>
+  new Promise((resolve, reject) =>
+    zlib.deflateRaw(content, (error, result) =>
+      error ? reject(error) : resolve(result),
+    ),
+  );
 
 let table: Int32Array | undefined;
 

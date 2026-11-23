@@ -35,6 +35,34 @@ semver, with the pre-1.0 convention that **breaking changes bump the minor**.
   - `flow()` tokenizes a box once for all the entries it measures, and
     neither its trial renders nor counting the slides load `{{IMAGE}}`
     pictures.
+- `renderDeck` is about 40 % faster again, with the same output byte for
+  byte. A deck of 25 template slides (360 text boxes with tags, 30
+  pictures of 0.5 MB, 10 `flow()` slides that make 35 slides) takes 0.28
+  instead of 0.5 seconds; the same deck with pptx-automizer 0.9.4 (tags
+  replaced with `replaceText`, pictures swapped, lists split by hand,
+  nothing measured) takes 1.3 to 1.9 seconds.
+  - The build targets ES2022 instead of ES6, so `async`/`await` runs
+    natively instead of through generators (Node 20 is required already).
+  - Parts are read without JSZip's pipeline where the result is the same:
+    parts of the template inflated with Node's zlib, parts written during
+    the run taken as they were given. JSZip inflated in JavaScript and
+    passed every 16 KB through a chain of workers.
+  - A part parsed before is copied instead of parsed again (a slide added
+    several times, the many identical `.rels` parts).
+  - XML is written by a serializer of its own, with the output of
+    xmldom's, about a third faster.
+  - Copying XML nodes is about three times as fast (properties copied by
+    name instead of by `Object.keys`), and so is finding elements by tag
+    name; the unsupported tags of a slide are found in one pass.
+  - xmldom checks each element and attribute name against a long Unicode
+    pattern; the result is now kept per name.
+  - The .pptx is deflated on Node's thread pool, several parts at a time.
+  - `flow()` looks up the list styles of a paragraph level once per box
+    instead of once per paragraph, and the font of a run once per box.
+  - The system fonts are read only when the `fonts` folders have no exact
+    match (same family, bold and italic) for a font the slide uses. Before,
+    the first render with `flow()` in a process read every system font.
+  - A picture `{{IMAGE}}` adds is hashed once instead of twice.
 
 ## [0.3.9] - 2026-11-22
 

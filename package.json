@@ -85,7 +85,7 @@
     "regexp.escape": "^2.0.1",
     "slugify": "^1.6.9"
   },
-  "packageManager": "bun@1.4.4",
+  "packageManager": "bun@1.4.5",
   "resolutions": {
     "glob": "^14.0.2",
     "minimatch": "^11.0.1"

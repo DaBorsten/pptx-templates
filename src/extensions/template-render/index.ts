@@ -1,6 +1,8 @@
 import fs from 'fs';
 import JSZip from 'jszip';
 import ArchiveJszip from '../../helper/archive/archive-jszip';
+import Archive from '../../helper/archive/archive';
+import { XmlParseCache } from '../../helper/xml-parse-cache';
 import { PptPaths } from '../../helper/ppt-paths';
 import { removeUnreachableParts } from './prune';
 import { generatePptx } from './zip-writer';
@@ -52,6 +54,8 @@ async function buildDeck(
   content: Buffer,
   /** `content`, loaded: shared by the root and the source template. */
   loaded: JSZip,
+  /** The parse cache of the counting archive, shared with the deck's. */
+  parseCache: XmlParseCache,
   data: TemplateData,
   renderOptions: RenderTemplateOptions,
   select: SelectSlides,
@@ -76,6 +80,9 @@ async function buildDeck(
   // loaded once, and each archive gets its own list of the same parts
   usePreloaded(pres.rootTemplate.archive, loaded);
   usePreloaded(pres.getTemplate('deck').archive, loaded);
+  // the slides counted are the ones the deck gets: parsed once
+  shareParseCache(parseCache, pres.rootTemplate.archive);
+  shareParseCache(parseCache, pres.getTemplate('deck').archive);
 
   const available = await pres.getTemplate('deck').getAllSlideNumbers();
   const slides = await select(available);
@@ -128,6 +135,11 @@ async function buildDeck(
  * loading its file again. The copy shares the parts, which JSZip never
  * changes in place (zip.file() and zip.remove() replace or drop them).
  */
+/** Lets an archive copy parts the cache has parsed already. */
+const shareParseCache = (cache: XmlParseCache, archive: unknown): void => {
+  if (archive instanceof Archive) archive.parseCache = cache;
+};
+
 const usePreloaded = (archive: unknown, zip: JSZip): void => {
   if (!(archive instanceof ArchiveJszip) || archive.archive) return;
   const copy = new JSZip();
@@ -251,64 +263,71 @@ export const renderDeck = async (
   const content = await loadContent(pptx);
   const zip = await JSZip.loadAsync(content);
   const deck = openCountDeck(content, zip);
-  return buildDeck(content, zip, data, renderOptions, async (available) => {
-    const result: DeckSlide[] = [];
-    // The copies of a slide share the measurement of its lists
-    const caches = new Map<number, FlowCache>();
-    // flowContinue(): the entries of the flow() lists on the slides so far
-    const shown = new FlowShown();
-    for (const number of slides ?? available) {
-      if (!caches.has(number)) caches.set(number, new FlowCache());
-      const flowCache = caches.get(number);
-      const flowShown = shown.clone();
-      const slideOptions = { ...renderOptions, flowShown };
-      const exists = available.includes(number);
-      // {{HIDE-SLIDE …}} in the notes, evaluated per copy of the slide
-      const hide = exists
-        ? await hideSlideConditions(zip, number, renderOptions)
-        : [];
-      const hidden = async (page: number, pages: number) => {
-        try {
-          return await evaluateHideConditions(
-            hide,
-            data,
-            slideOptions,
-            renderOptions.flowPage ?? page,
-            pages,
-          );
-        } catch (error) {
-          throw withSlideNumber(error, number);
-        }
-      };
-      // Hidden whatever flowPage is: no need to measure its lists
-      const perPage = hide.some((c) => /\bflowPages?\b/.test(c.code));
-      if (hide.length && !perPage && (await hidden(0, 1))) continue;
+  return buildDeck(
+    content,
+    zip,
+    deck.archive.parseCache,
+    data,
+    renderOptions,
+    async (available) => {
+      const result: DeckSlide[] = [];
+      // The copies of a slide share the measurement of its lists
+      const caches = new Map<number, FlowCache>();
+      // flowContinue(): the entries of the flow() lists on the slides so far
+      const shown = new FlowShown();
+      for (const number of slides ?? available) {
+        if (!caches.has(number)) caches.set(number, new FlowCache());
+        const flowCache = caches.get(number);
+        const flowShown = shown.clone();
+        const slideOptions = { ...renderOptions, flowShown };
+        const exists = available.includes(number);
+        // {{HIDE-SLIDE …}} in the notes, evaluated per copy of the slide
+        const hide = exists
+          ? await hideSlideConditions(zip, number, renderOptions)
+          : [];
+        const hidden = async (page: number, pages: number) => {
+          try {
+            return await evaluateHideConditions(
+              hide,
+              data,
+              slideOptions,
+              renderOptions.flowPage ?? page,
+              pages,
+            );
+          } catch (error) {
+            throw withSlideNumber(error, number);
+          }
+        };
+        // Hidden whatever flowPage is: no need to measure its lists
+        const perPage = hide.some((c) => /\bflowPages?\b/.test(c.code));
+        if (hide.length && !perPage && (await hidden(0, 1))) continue;
 
-      // a slide whose flow() lists need more room repeats. Measured also
-      // with a fixed flowPage: flowContinue() needs what the slide shows
-      const plans: { plan: FlowPlan; list: unknown }[] = [];
-      const counted = exists
-        ? await flowPagesOf(deck, number, data, {
-            ...slideOptions,
+        // a slide whose flow() lists need more room repeats. Measured also
+        // with a fixed flowPage: flowContinue() needs what the slide shows
+        const plans: { plan: FlowPlan; list: unknown }[] = [];
+        const counted = exists
+          ? await flowPagesOf(deck, number, data, {
+              ...slideOptions,
+              flowCache,
+              onFlowPlan: (plan, list) => plans.push({ plan, list }),
+            })
+          : 1;
+        const pages = renderOptions.flowPage === undefined ? counted : 1;
+        for (let page = 0; page < pages; page++) {
+          if (perPage && (await hidden(page, counted))) continue;
+          result.push({
+            number,
+            page: pages > 1 ? page : undefined,
             flowCache,
-            onFlowPlan: (plan, list) => plans.push({ plan, list }),
-          })
-        : 1;
-      const pages = renderOptions.flowPage === undefined ? counted : 1;
-      for (let page = 0; page < pages; page++) {
-        if (perPage && (await hidden(page, counted))) continue;
-        result.push({
-          number,
-          page: pages > 1 ? page : undefined,
-          flowCache,
-          flowShown,
-        });
-        const onSlide = renderOptions.flowPage ?? page;
-        plans.forEach(({ plan, list }) =>
-          shown.add(flowPlanEntries(plan, onSlide), list),
-        );
+            flowShown,
+          });
+          const onSlide = renderOptions.flowPage ?? page;
+          plans.forEach(({ plan, list }) =>
+            shown.add(flowPlanEntries(plan, onSlide), list),
+          );
+        }
       }
-    }
-    return result;
-  });
+      return result;
+    },
+  );
 };
