@@ -64,6 +64,12 @@ semver, with the pre-1.0 convention that **breaking changes bump the minor**.
     the first render with `flow()` in a process read every system font.
   - A picture `{{IMAGE}}` adds is hashed once instead of twice.
 
+### Removed
+
+- The dependency `regexp.escape`, which installed 91 packages. Tag
+  delimiters are escaped by a small function in the library instead, with
+  the same matches.
+
 ## [0.3.9] - 2026-11-22
 
 ### Added

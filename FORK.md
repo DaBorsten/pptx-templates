@@ -68,6 +68,7 @@ changed, not only added, and may conflict on a merge:
 | `package.json` | `homepage` → `https://daborsten.github.io/pptx-templates/` (added, not changed) | npm links the docs site instead of falling back to `<repository>#readme` |
 | `package.json`, `README.md` | `description` and `keywords` rewritten; README rewritten around the template tags | the npm page and README describe the fork's templating, not upstream's API |
 | `package.json` | `validate:pptx` runs `node tools/fork/validate-pptx.mjs` | upstream's inline `docker run -v "$PWD:…"` fails in cmd and PowerShell, where `$PWD` is not expanded |
+| `src/helper/text-replace-helper.ts` | `import escape from 'regexp.escape'` → `import { escapeRegExp as escape } from '../extensions/regexp-escape'`; `regexp.escape` removed from `package.json` | the polyfill installed 91 packages (`es-abstract` alone 8 MB) for a one-line function |
 | `src/helper/generate/generate-pptxgenjs.ts` | 1 import + `repairSvgFallbacks(...)` around `this.generator.stream()` | pptxgenjs 4 writes SVG bytes into the PNG fallback, see `src/extensions/pptxgenjs-compat/` |
 | `tsconfig.json` | `strict: false` explicit, `moduleResolution: bundler`, `rootDir: src`, `lib: es2022`, `baseUrl` removed | TypeScript 6 defaults (`strict` on, `rootDir`) and deprecations (`node10`, `baseUrl`); `es2022` for `Error` `cause` |
 | `tsconfig.json` | `target: es2022` instead of `es6` | native `async`/`await` instead of generator helpers: about 10–15 % faster rendering; Node ≥ 20 (`engines`) runs ES2022 |

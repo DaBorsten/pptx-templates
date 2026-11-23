@@ -82,7 +82,6 @@
   "dependencies": {
     "@xmldom/xmldom": "^0.9.12",
     "jszip": "^3.10.2",
-    "regexp.escape": "^2.0.1",
     "slugify": "^1.6.9"
   },
   "packageManager": "bun@1.4.5",

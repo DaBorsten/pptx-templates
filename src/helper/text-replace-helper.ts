@@ -1,5 +1,5 @@
 import { GeneralHelper } from './general-helper';
-import escape from 'regexp.escape';
+import { escapeRegExp as escape } from '../extensions/regexp-escape';
 import { XmlHelper } from './xml-helper';
 import {
   ReplaceText,
