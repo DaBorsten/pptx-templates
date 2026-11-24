@@ -95,6 +95,13 @@ relationship reaches are left out.
   output; a newer xmldom comes with a release of this library once that
   output is checked against it.
 
+### Fixed
+
+- `renderDeck`: a `{{HIDE-SLIDE …}}` tag that spell check had split inside
+  the keyword (`{{HI` and `DE-SLIDE …}}` in two runs) stayed in the speaker
+  notes of a slide that is shown. The slide itself was hidden or shown
+  correctly.
+
 ### Removed
 
 - The dependency `regexp.escape`, which installed 91 packages. Tag

@@ -64,6 +64,21 @@ const paragraphText = (paragraph: XmlElement): string =>
     .map((t) => t.textContent)
     .join('');
 
+const RUN_TEXT = /<a:t(?:\s[^>]*)?>([^<]*)<\/a:t>/g;
+
+/**
+ * Cheap pre-check on the XML of a notes part, before parsing it: whether
+ * its text (the `a:t` runs that paragraphText reads, joined) may hold the
+ * keyword, case-insensitive. Joined because spell check splits runs
+ * anywhere, also within the keyword (`HI` + `DE-SLIDE`). A character
+ * reference may encode a letter of it, so text with one is parsed too.
+ */
+const mayHoldHideTag = (xml: string): boolean => {
+  let text = '';
+  for (const [, run] of xml.matchAll(RUN_TEXT)) text += run;
+  return /hide/i.test(text) || text.includes('&#');
+};
+
 type Syntax = ReturnType<typeof tagSyntax>;
 
 /** The HIDE-SLIDE tags in `text`; other tags and invalid ones are skipped. */
@@ -110,8 +125,7 @@ export const hideSlideConditions = async (
 ): Promise<HideSlideCondition[]> => {
   const part = await notesPartOf(zip, slide);
   const xml = part && (await readText(zip, part));
-  // Cheap pre-check on the text, runs joined; the keyword is case-insensitive
-  if (!xml || !/hide/i.test(xml.replace(/<[^>]*>/g, ''))) return [];
+  if (!xml || !mayHoldHideTag(xml)) return [];
   const syntax = tagSyntax(options);
   return elements(parseXml(xml), 'a:p').flatMap((p) =>
     hideTagsIn(paragraphText(p), syntax, options),
@@ -268,8 +282,7 @@ export const stripHideSlideTagsInDeck = async (
   );
   for (const part of parts) {
     const xml = await readText(zip, part);
-    // Cheap pre-check; the keyword is case-insensitive
-    if (!/hide/i.test(xml)) continue;
+    if (!mayHoldHideTag(xml)) continue;
     const doc = parseXml(xml);
     if (stripHideSlideTags(doc, options)) {
       zip.file(part, serializeXml(doc));
