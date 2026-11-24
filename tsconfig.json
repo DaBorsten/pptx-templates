@@ -5,7 +5,7 @@
     "strict": false,
     "noImplicitAny": true,
     "strictBindCallApply": true,
-    "target": "es6",
+    "target": "es2022",
     "moduleResolution": "bundler",
     "sourceMap": true,
     "rootDir": "src",

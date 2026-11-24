@@ -1,7 +1,7 @@
 import fs from 'fs';
 import JSZip from 'jszip';
 import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
-import { cloneXml } from '../src/extensions/template-logic/clone';
+import { cloneXml, copiesByName } from '../src/extensions/template-logic/clone';
 
 /**
  * cloneXml replaces xmldom's cloneNode in the template renderer for speed;
@@ -114,6 +114,13 @@ test('cloneXml clones the parts of templates like cloneNode', async () => {
   expect(compared).toBeGreaterThan(500);
   // ~3 s alone; the full suite runs it in parallel with everything else
 }, 30_000);
+
+test('the installed xmldom takes the copy by property name', () => {
+  // false: xmldom gives its nodes a property cloneXml does not copy by
+  // name; cloneXml still works (generic copy), but several times slower.
+  // Add the property to the copy functions and HANDLED in clone.ts.
+  expect(copiesByName()).toBe(true);
+});
 
 test('cloneXml falls back to cloneNode for other nodes', () => {
   const doc = new DOMParser().parseFromString(

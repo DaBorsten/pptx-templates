@@ -1,4 +1,4 @@
-import escape from 'regexp.escape';
+import { escapeRegExp as escape } from '../regexp-escape';
 import ModifyTextHelper from '../../helper/modify-text-helper';
 import { XmlElement } from '../../types/xml-types';
 

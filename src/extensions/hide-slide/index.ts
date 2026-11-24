@@ -4,9 +4,11 @@
  */
 import fs from 'fs';
 import JSZip from 'jszip';
-import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
+import { DOMParser } from '@xmldom/xmldom';
+import { serializeXml } from '../../helper/xml-serializer';
 import { XmlDocument, XmlElement } from '../../types/xml-types';
 import { PptPaths } from '../../helper/ppt-paths';
+import { readText } from '../template-render/zip-text';
 import {
   fixSmartQuotes,
   isTableMarker,
@@ -62,6 +64,21 @@ const paragraphText = (paragraph: XmlElement): string =>
     .map((t) => t.textContent)
     .join('');
 
+const RUN_TEXT = /<a:t(?:\s[^>]*)?>([^<]*)<\/a:t>/g;
+
+/**
+ * Cheap pre-check on the XML of a notes part, before parsing it: whether
+ * its text (the `a:t` runs that paragraphText reads, joined) may hold the
+ * keyword, case-insensitive. Joined because spell check splits runs
+ * anywhere, also within the keyword (`HI` + `DE-SLIDE`). A character
+ * reference may encode a letter of it, so text with one is parsed too.
+ */
+const mayHoldHideTag = (xml: string): boolean => {
+  let text = '';
+  for (const [, run] of xml.matchAll(RUN_TEXT)) text += run;
+  return /hide/i.test(text) || text.includes('&#');
+};
+
 type Syntax = ReturnType<typeof tagSyntax>;
 
 /** The HIDE-SLIDE tags in `text`; other tags and invalid ones are skipped. */
@@ -88,7 +105,7 @@ export const notesPartOf = async (
   zip: JSZip,
   slide: number,
 ): Promise<string | undefined> => {
-  const rels = await zip.file(PptPaths.slideRels(slide))?.async('string');
+  const rels = await readText(zip, PptPaths.slideRels(slide));
   if (!rels) return undefined;
   const rel = elements(parseXml(rels), 'Relationship').find(
     (r) => r.getAttribute('Type') === NOTES_REL,
@@ -107,8 +124,8 @@ export const hideSlideConditions = async (
   options: RenderTemplateOptions = {},
 ): Promise<HideSlideCondition[]> => {
   const part = await notesPartOf(zip, slide);
-  const xml = part && (await zip.file(part)?.async('string'));
-  if (!xml) return [];
+  const xml = part && (await readText(zip, part));
+  if (!xml || !mayHoldHideTag(xml)) return [];
   const syntax = tagSyntax(options);
   return elements(parseXml(xml), 'a:p').flatMap((p) =>
     hideTagsIn(paragraphText(p), syntax, options),
@@ -264,17 +281,11 @@ export const stripHideSlideTagsInDeck = async (
     /^ppt\/notesSlides\/notesSlide\d+\.xml$/.test(name),
   );
   for (const part of parts) {
-    const xml = await zip.file(part).async('string');
-    // Cheap pre-check; the keyword is case-insensitive
-    if (!/hide/i.test(xml)) continue;
+    const xml = await readText(zip, part);
+    if (!mayHoldHideTag(xml)) continue;
     const doc = parseXml(xml);
     if (stripHideSlideTags(doc, options)) {
-      zip.file(
-        part,
-        new XMLSerializer().serializeToString(
-          doc as unknown as Parameters<XMLSerializer['serializeToString']>[0],
-        ),
-      );
+      zip.file(part, serializeXml(doc));
     }
   }
 };

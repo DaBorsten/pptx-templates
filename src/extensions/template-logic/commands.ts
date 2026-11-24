@@ -1,4 +1,4 @@
-import escape from 'regexp.escape';
+import { escapeRegExp as escape } from '../regexp-escape';
 import { RenderTemplateOptions, TemplateCommandType } from './types';
 
 export type ParsedCommand = {

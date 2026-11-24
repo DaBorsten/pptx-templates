@@ -1,4 +1,4 @@
-import { DOMParser, Node, XMLSerializer } from '@xmldom/xmldom';
+import { Node } from '@xmldom/xmldom';
 import { ArchivedFile, ArchiveType } from '../../interfaces/iarchive';
 import { XmlDocument } from '../../types/xml-types';
 import {
@@ -8,6 +8,8 @@ import {
 } from '../../types/types';
 import JSZip from 'jszip';
 import { patchXmldomSaxRegExpCache } from '../xmldom-sax-patch';
+import { serializeXml } from '../xml-serializer';
+import { XmlParseCache } from '../xml-parse-cache';
 
 patchXmldomSaxRegExpCache();
 
@@ -24,17 +26,18 @@ export default class Archive {
     this.params = params;
   }
 
+  /**
+   * Parts parsed before are copied instead of parsed again. Archives that
+   * read the same parts (renderDeck's) may share one cache.
+   */
+  parseCache = new XmlParseCache();
+
   parseXml(xmlString: string): XmlDocument {
-    const dom = new DOMParser();
-    return dom.parseFromString(
-      xmlString,
-      'application/xml',
-    ) as unknown as XmlDocument;
+    return this.parseCache.parse(xmlString);
   }
 
   serializeXml(xml: XmlDocument | Node) {
-    const s = new XMLSerializer();
-    return s.serializeToString(<Node>xml);
+    return serializeXml(<Node>xml);
   }
 
   async writeBuffer(archiveType: ArchiveType) {

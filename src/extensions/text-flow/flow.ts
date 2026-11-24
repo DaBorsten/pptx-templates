@@ -1,4 +1,4 @@
-import { XMLSerializer } from '@xmldom/xmldom';
+import { serializeXml } from '../../helper/xml-serializer';
 import { XmlElement } from '../../types/xml-types';
 import { log } from '../../helper/logger';
 import { FontRegistry } from './fonts';
@@ -297,7 +297,7 @@ export class TextFlow {
   private readonly plans = new Map<string, Promise<FlowPlan>>();
   private readonly resolved = new Map<string, FlowPlan>();
   private readonly fonts: FontRegistry;
-  private readonly serializer = new XMLSerializer();
+  private readonly serializer = { serializeToString: serializeXml };
 
   constructor(
     boxes: Map<XmlElement, string>,

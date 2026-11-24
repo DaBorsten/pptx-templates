@@ -155,6 +155,27 @@ test('a tag split across runs in the notes is found and removed', async () => {
   expect(kept[1].notes).not.toContain('SLIDE');
 });
 
+test('a tag split inside the keyword is found and removed', async () => {
+  // spell check splits runs anywhere, also within HIDE
+  const zip = await JSZip.loadAsync(fs.readFileSync(template));
+  const part = 'ppt/notesSlides/notesSlide2.xml';
+  const xml = await zip.file(part).async('string');
+  zip.file(
+    part,
+    xml.replace(
+      '<a:r><a:t></a:t></a:r>',
+      '<a:r><a:t>Notes {{HI</a:t></a:r><a:r><a:rPr lang="de-DE"/><a:t>DE-SLIDE off}}</a:t></a:r>',
+    ),
+  );
+  const pptx = await zip.generateAsync({ type: 'nodebuffer' });
+  // the keyword is nowhere else in the part
+  expect(/hide/i.test(xml)).toBe(false);
+
+  expect((await deck(await renderDeck(pptx, { off: true }))).length).toBe(2);
+  const kept = await deck(await renderDeck(pptx, { off: false }));
+  expect(kept[1].notes).toBe('Notes ');
+});
+
 test('the condition sees additionalJsContext, other delimiters and fixSmartQuotes', async () => {
   const pptx = await withNotes({ 2: '<<HIDE-SLIDE isEmpty(list)>>' });
   const slides = await deck(

@@ -12,6 +12,8 @@ type PartContext = {
   targetArchive?: IArchive;
   targetPath?: string;
   targetTemplate?: RootPresTemplate;
+  /** countFlowPages: see RenderContext.countOnly. */
+  countOnly?: boolean;
 };
 
 const isXmlElement = (value: unknown): value is XmlElement =>
@@ -75,6 +77,7 @@ export const renderTemplate =
         };
       },
       styles,
+      countOnly: part?.countOnly,
     };
 
     const renderer = new TemplateRenderer(await data, options, renderContext);
