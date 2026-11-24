@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import { DOMParser } from '@xmldom/xmldom';
 import { XmlDocument } from '../types/xml-types';
 import { cloneDocument } from './xml-clone';
@@ -8,20 +9,34 @@ import { cloneDocument } from './xml-clone';
  * quarter of the time. A slide added several times, or the many identical
  * `.rels` parts of a deck, are read again and again.
  *
- * A text is remembered when it is parsed for the first time; the second
- * parse keeps an untouched copy, which the third and later ones copy. A
- * part read once costs nothing extra. Texts above MAX_TEXT, and any once
- * LIMIT characters of text are remembered, are always parsed.
+ * Memory: a text parsed for the first time leaves only its checksum (a
+ * text seen once keeps nothing else). The second parse of the same text
+ * keeps the text and an untouched copy of its document, which the third
+ * and later ones copy. A parsed document takes about 36 bytes per
+ * character of XML, so the copies kept are limited to LIMIT characters of
+ * text (about 150 MB at most, a few MB for usual templates), and texts
+ * above MAX_TEXT are always parsed. A checksum that matches by chance only
+ * keeps a copy that is never used: copies are looked up by the full text.
  */
 export class XmlParseCache {
-  static readonly MAX_TEXT = 2_000_000;
-  static readonly LIMIT = 32_000_000;
+  /** Longer texts are always parsed. */
+  static readonly MAX_TEXT = 1_000_000;
+  /** Characters of the texts whose parsed copy is kept. */
+  static readonly LIMIT = 4_000_000;
+  /** Checksums of texts seen once (about 100 bytes each). */
+  static readonly MAX_SEEN = 100_000;
 
-  private readonly seen = new Map<string, XmlDocument | null>();
+  private readonly seenOnce = new Set<string>();
+  private readonly copies = new Map<string, XmlDocument>();
   private chars = 0;
 
+  /** Characters of text whose parsed copy is kept (for tests). */
+  get keptChars(): number {
+    return this.chars;
+  }
+
   parse(xmlString: string): XmlDocument {
-    const known = this.seen.get(xmlString);
+    const known = this.copies.get(xmlString);
     if (known) {
       const copy = cloneDocument(known);
       if (copy) return copy;
@@ -30,17 +45,26 @@ export class XmlParseCache {
       xmlString,
       'application/xml',
     ) as unknown as XmlDocument;
-    if (known === null) {
-      const pristine = cloneDocument(parsed);
-      if (pristine) this.seen.set(xmlString, pristine);
-    } else if (
-      known === undefined &&
-      xmlString.length <= XmlParseCache.MAX_TEXT &&
-      this.chars + xmlString.length <= XmlParseCache.LIMIT
-    ) {
-      this.seen.set(xmlString, null);
-      this.chars += xmlString.length;
+    if (!known && xmlString.length <= XmlParseCache.MAX_TEXT) {
+      this.remember(xmlString, parsed);
     }
     return parsed;
+  }
+
+  private remember(xmlString: string, parsed: XmlDocument): void {
+    const checksum = createHash('sha1').update(xmlString).digest('base64');
+    if (!this.seenOnce.has(checksum)) {
+      if (this.seenOnce.size < XmlParseCache.MAX_SEEN) {
+        this.seenOnce.add(checksum);
+      }
+      return;
+    }
+    if (this.chars + xmlString.length > XmlParseCache.LIMIT) return;
+    // copied before the caller changes `parsed`
+    const pristine = cloneDocument(parsed);
+    if (!pristine) return;
+    this.seenOnce.delete(checksum);
+    this.copies.set(xmlString, pristine);
+    this.chars += xmlString.length;
   }
 }

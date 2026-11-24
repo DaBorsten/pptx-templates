@@ -1,5 +1,5 @@
 import JSZip from 'jszip';
-import { readFast } from '../../helper/archive/jszip-fast-read';
+import { readFastAsync } from '../../helper/archive/jszip-fast-read';
 
 /**
  * The text of a part of `zip`, or undefined if there is none: what
@@ -22,6 +22,7 @@ export const readText = async (
     }
   }
   return (
-    (readFast(file, 'string') as string | undefined) ?? file.async('string')
+    ((await readFastAsync(file, 'string')) as string | undefined) ??
+    file.async('string')
   );
 };

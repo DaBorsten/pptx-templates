@@ -94,19 +94,21 @@ const listFontFiles = (entry: string, depth = 0): string[] => {
 const infoCache = new Map<string, FontFaceInfo[]>();
 const faceCache = new Map<string, FontFace>();
 /**
- * The font files of a folder. Listing the system font folders takes a
- * stat() per file (hundreds on Windows); every render with flow() needs the
- * list, so it is read once per process.
+ * The font files of the system font folders. Listing them takes a stat()
+ * per file (hundreds on Windows) and every render with flow() may need
+ * them, so they are listed once per process. Fonts installed while the
+ * process runs are found after a restart, as by most applications.
+ *
+ * The `fonts` folders a caller passes are listed by each FontRegistry
+ * (each render) instead: a caller may add font files to them at any time.
  */
-const listCache = new Map<string, string[]>();
+let systemFontFiles: string[] | undefined;
 
-const listFontFilesCached = (entry: string): string[] => {
-  let files = listCache.get(entry);
-  if (!files) {
-    files = listFontFiles(entry);
-    listCache.set(entry, files);
-  }
-  return files;
+const listSystemFontFiles = (): string[] => {
+  systemFontFiles ??= systemFontFolders().flatMap((entry) =>
+    listFontFiles(entry),
+  );
+  return systemFontFiles;
 };
 
 const infoOf = (file: string): FontFaceInfo[] => {
@@ -148,10 +150,10 @@ export class FontRegistry {
     private readonly system = true,
   ) {}
 
-  /** The faces of `folders` only. */
+  /** The faces of `folders` only, listed once per registry. */
   private ownFaces(): FontFaceInfo[] {
     this.ownIndex ??= this.folders
-      .flatMap((entry) => listFontFilesCached(entry))
+      .flatMap((entry) => listFontFiles(entry))
       .flatMap(infoOf);
     return this.ownIndex;
   }
@@ -159,12 +161,7 @@ export class FontRegistry {
   /** The faces of `folders`, then those of the system font folders. */
   private faces(): FontFaceInfo[] {
     this.index ??= this.system
-      ? [
-          ...this.ownFaces(),
-          ...systemFontFolders()
-            .flatMap((entry) => listFontFilesCached(entry))
-            .flatMap(infoOf),
-        ]
+      ? [...this.ownFaces(), ...listSystemFontFiles().flatMap(infoOf)]
       : this.ownFaces();
     return this.index;
   }

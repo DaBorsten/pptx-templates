@@ -5,7 +5,7 @@
     "": {
       "name": "pptx-templates",
       "dependencies": {
-        "@xmldom/xmldom": "^0.9.12",
+        "@xmldom/xmldom": "0.9.12",
         "jszip": "^3.10.2",
         "slugify": "^1.6.9",
       },

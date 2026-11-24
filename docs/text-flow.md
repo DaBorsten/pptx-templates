@@ -285,4 +285,7 @@ as not shown. The second slide repeats as usual while projects are left.
 - `flow`, `flowRest`, `flowContinue`, `flowPage` and `flowPages` are built in. The same name
   in your data or in `additionalJsContext` takes precedence.
 - To count the slides, `renderDeck` and `countFlowPages` render the slide
-  once more. Functions in your data are called again then.
+  once more. Functions in your data are called again then. Pictures of
+  `{{IMAGE}}` are not loaded for the count, since they do not change where
+  the text goes: a missing image file is reported when the slide itself is
+  rendered, not by `countFlowPages`.

@@ -217,16 +217,42 @@ test('renderDeck counts flow() pages without building a deck per slide', async (
   }
 });
 
-test('the font folders are listed once per process', () => {
+test('the system font folders are listed once per process', () => {
+  // a typeface no folder has: the system fonts are searched
+  const lookUp = () => {
+    try {
+      new FontRegistry([], true).face('No Such Typeface 7c1e');
+    } catch {
+      // a machine without system fonts: nothing to measure with
+    }
+  };
+  lookUp();
   const readdir = jest.spyOn(fs, 'readdirSync');
   try {
-    new FontRegistry(fonts, false).face('Liberation Sans');
-    const first = readdir.mock.calls.length;
-    new FontRegistry(fonts, false).face('Liberation Sans');
-    expect(readdir.mock.calls.length).toBe(first);
+    lookUp();
+    expect(readdir).not.toHaveBeenCalled();
   } finally {
     readdir.mockRestore();
   }
+});
+
+test('a font added to a fonts folder is found by the next render', () => {
+  const folder = `${outputDir}/font-folder-added`;
+  fs.rmSync(folder, { recursive: true, force: true });
+  fs.mkdirSync(folder, { recursive: true });
+  // empty folder, no system fonts: nothing to measure with
+  expect(() =>
+    new FontRegistry([folder], false).face('Liberation Sans'),
+  ).toThrow(/no font to measure/);
+
+  fs.copyFileSync(
+    `${fonts[0]}/LiberationSans-Regular.ttf`,
+    `${folder}/LiberationSans-Regular.ttf`,
+  );
+  const face = new FontRegistry([folder], false).face('Liberation Sans');
+  expect(face.info.file.replace(/\\/g, '/')).toBe(
+    `${folder}/LiberationSans-Regular.ttf`.replace(/\\/g, '/'),
+  );
 });
 
 describe('MediaDeduplicator hashes only pictures of the same size', () => {

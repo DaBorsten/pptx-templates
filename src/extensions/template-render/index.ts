@@ -130,16 +130,16 @@ async function buildDeck(
   }
 }
 
-/**
- * Lets a not yet opened jszip archive use a copy of `zip` instead of
- * loading its file again. The copy shares the parts, which JSZip never
- * changes in place (zip.file() and zip.remove() replace or drop them).
- */
 /** Lets an archive copy parts the cache has parsed already. */
 const shareParseCache = (cache: XmlParseCache, archive: unknown): void => {
   if (archive instanceof Archive) archive.parseCache = cache;
 };
 
+/**
+ * Lets a not yet opened jszip archive use a copy of `zip` instead of
+ * loading its file again. The copy shares the parts, which JSZip never
+ * changes in place (zip.file() and zip.remove() replace or drop them).
+ */
 const usePreloaded = (archive: unknown, zip: JSZip): void => {
   if (!(archive instanceof ArchiveJszip) || archive.archive) return;
   const copy = new JSZip();
