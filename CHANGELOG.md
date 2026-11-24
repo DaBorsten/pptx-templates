@@ -6,17 +6,38 @@ semver, with the pre-1.0 convention that **breaking changes bump the minor**.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-24
+
+Generating is several times faster, with the same slides. Most of the
+speed-ups are in code every `Automizer` run uses (reading, parsing and
+writing parts, copying XML nodes, finding duplicate pictures), not only in
+`renderDeck`. Compared with 0.3.9, the content of every part is the same;
+the bytes of a `renderDeck` deck differ: parts it does not change are taken
+over from the template as they are instead of parsed and written again,
+pictures are stored instead of deflated (about 1 % larger), and parts no
+relationship reaches are left out.
+
 ### Changed
 
+- **Behavior change:** `countFlowPages` loads no `{{IMAGE}}` picture. The
+  value is still evaluated, so an error in the expression is still
+  reported, but a missing file, a path outside `imageRoot`, an unknown
+  image format, `IMAGE` in a table cell or two `IMAGE` tags in one alt
+  text are reported only when the slide is rendered, not by
+  `countFlowPages`. `renderDeck` renders every slide it counts, so it
+  reports the same errors as before; an `errorHandler` gets them once
+  instead of twice on a `flow()` slide.
 - `renderDeck` is more than twice as fast, with the same slides: a deck
   of 8 template slides, three of them with `flow()` lists that make 2 to 4
   slides each, takes about 0.1 instead of 0.23 seconds.
   - `renderDeck` and `countFlowPages` count the slides a `flow()` slide
     needs by rendering that slide by itself, instead of building a whole
-    deck for each such slide.
+    deck for each such slide. The count is the same.
   - The system font folders are listed once per process, not on every
     render with `flow()` (on Windows a `stat` for each of hundreds of
-    fonts).
+    fonts). Fonts installed while the process runs are found after a
+    restart. The `fonts` folders passed in the options are still listed on
+    every render, so font files added to them are found right away.
   - `renderDeck` drops the parts no relationship reaches any more (the
     template's own slides with their notes, charts, embeddings and
     pictures) from the `.rels` parts, instead of parsing every slide once
@@ -46,9 +67,15 @@ semver, with the pre-1.0 convention that **breaking changes bump the minor**.
   - Parts are read without JSZip's pipeline where the result is the same:
     parts of the template inflated with Node's zlib, parts written during
     the run taken as they were given. JSZip inflated in JavaScript and
-    passed every 16 KB through a chain of workers.
+    passed every 16 KB through a chain of workers. Parts above 1 MB are
+    inflated on Node's thread pool, so they do not block the event loop.
+    A part that inflates to more than its zip header says (a corrupt file
+    or a zip bomb) is rejected before it fills the memory; JSZip rejected
+    it only after inflating all of it.
   - A part parsed before is copied instead of parsed again (a slide added
-    several times, the many identical `.rels` parts).
+    several times, the many identical `.rels` parts). A part parsed once
+    keeps only a checksum; the copies kept are limited to 4 million
+    characters of XML per archive (about 150 MB at most).
   - XML is written by a serializer of its own, with the output of
     xmldom's, about a third faster.
   - Copying XML nodes is about three times as fast (properties copied by
@@ -63,6 +90,10 @@ semver, with the pre-1.0 convention that **breaking changes bump the minor**.
     match (same family, bold and italic) for a font the slide uses. Before,
     the first render with `flow()` in a process read every system font.
   - A picture `{{IMAGE}}` adds is hashed once instead of twice.
+- `@xmldom/xmldom` is pinned to exactly 0.9.12 instead of `^0.9.12`. The
+  library's own XML serializer and node copy produce xmldom 0.9.12's
+  output; a newer xmldom comes with a release of this library once that
+  output is checked against it.
 
 ### Removed
 
@@ -459,7 +490,8 @@ for that history.
   into one `.png` part. The fallback now gets the same placeholder PNG that
   pptxgenjs 3.12 wrote.
 
-[Unreleased]: https://github.com/DaBorsten/pptx-templates/compare/v0.3.9...HEAD
+[Unreleased]: https://github.com/DaBorsten/pptx-templates/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/DaBorsten/pptx-templates/compare/v0.3.9...v0.4.0
 [0.3.9]: https://github.com/DaBorsten/pptx-templates/compare/v0.3.8...v0.3.9
 [0.3.8]: https://github.com/DaBorsten/pptx-templates/compare/v0.3.7...v0.3.8
 [0.3.7]: https://github.com/DaBorsten/pptx-templates/compare/v0.3.6...v0.3.7
